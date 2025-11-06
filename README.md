@@ -1,18 +1,19 @@
-# React + Vite
+# 💻 POS Frontend – Sistema de Control de Stock y Ventas
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Este proyecto es el **frontend** del sistema POS para control de stock y ventas de un bazar.  
+Está desarrollado con **React.js + Vite + Tailwind CSS**, y se conecta con un backend hecho en **Node.js + Express.js** y una base de datos **Supabase (PostgreSQL)**.
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## 🚀 Tecnologías utilizadas
 
-## React Compiler
+- ⚛️ **React.js** – Librería principal para la interfaz  
+- ⚡ **Vite** – Entorno de desarrollo rápido  
+- 🎨 **Tailwind CSS** – Framework CSS para estilos modernos  
+- 🧭 **React Router DOM** – Navegación entre páginas  
+- 🧩 **Lucide React** – Íconos profesionales y minimalistas  
 
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
+---
 
-Note: This will impact Vite dev & build performances.
+## 🧱 Estructura del proyecto
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.

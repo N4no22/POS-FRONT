@@ -1,13 +1,22 @@
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
+import { useAuth } from "../context/AuthContext";
 
 export default function Login() {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [form, setForm] = useState({ email: "", password: "" });
+  const [error, setError] = useState("");
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    navigate("/dashboard"); // simula inicio de sesión
+    const success = login(form.email, form.password);
+
+    if (success) {
+      navigate("/dashboard");
+    } else {
+      setError("Credenciales incorrectas");
+    }
   };
 
   return (
@@ -44,6 +53,10 @@ export default function Login() {
               required
             />
           </div>
+
+          {error && (
+            <p className="text-red-400 text-center text-sm">{error}</p>
+          )}
 
           <button
             type="submit"

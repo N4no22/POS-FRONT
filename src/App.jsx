@@ -1,4 +1,8 @@
 import { Routes, Route, Navigate } from "react-router-dom";
+import { AuthProvider, useAuth } from "./context/AuthContext";
+import { AlertProvider } from "./context/AlertContext";
+import GlobalAlert from "./components/GlobalAlert";
+
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Ventas from "./pages/Ventas";
@@ -6,50 +10,82 @@ import Productos from "./pages/Productos";
 import Clientes from "./pages/Clientes";
 import DashboardLayout from "./layouts/DashboardLayout";
 
-function App() {
+// Maneja rutas y alerta según el login
+function AppContent() {
+  const { user } = useAuth();
+
   return (
-    <Routes>
-      {/* Login */}
-      <Route path="/" element={<Login />} />
+    <>
+      {/* 🔔 Solo mostrar alertas si el usuario está logueado */}
+      {user && <GlobalAlert />}
 
-      {/* Rutas dentro del dashboard (con sidebar persistente) */}
-      <Route
-        path="/dashboard"
-        element={
-          <DashboardLayout>
-            <Dashboard />
-          </DashboardLayout>
-        }
-      />
-      <Route
-        path="/ventas"
-        element={
-          <DashboardLayout>
-            <Ventas />
-          </DashboardLayout>
-        }
-      />
-      <Route
-        path="/productos"
-        element={
-          <DashboardLayout>
-            <Productos />
-          </DashboardLayout>
-        }
-      />
-      <Route
-        path="/clientes"
-        element={
-          <DashboardLayout>
-            <Clientes />
-          </DashboardLayout>
-        }
-      />
+      <Routes>
+        {/* Login */}
+        <Route path="/" element={<Login />} />
 
-      {/* Si la ruta no existe */}
-      <Route path="*" element={<Navigate to="/" />} />
-    </Routes>
+        {/* Dashboard con sidebar persistente */}
+        <Route
+          path="/dashboard"
+          element={
+            user ? (
+              <DashboardLayout>
+                <Dashboard />
+              </DashboardLayout>
+            ) : (
+              <Navigate to="/" />
+            )
+          }
+        />
+        <Route
+          path="/ventas"
+          element={
+            user ? (
+              <DashboardLayout>
+                <Ventas />
+              </DashboardLayout>
+            ) : (
+              <Navigate to="/" />
+            )
+          }
+        />
+        <Route
+          path="/productos"
+          element={
+            user ? (
+              <DashboardLayout>
+                <Productos />
+              </DashboardLayout>
+            ) : (
+              <Navigate to="/" />
+            )
+          }
+        />
+        <Route
+          path="/clientes"
+          element={
+            user ? (
+              <DashboardLayout>
+                <Clientes />
+              </DashboardLayout>
+            ) : (
+              <Navigate to="/" />
+            )
+          }
+        />
+
+        {/* Ruta por defecto */}
+        <Route path="*" element={<Navigate to="/" />} />
+      </Routes>
+    </>
   );
 }
 
-export default App;
+export default function App() {
+  return (
+    <AuthProvider>
+      <AlertProvider>
+        <AppContent />
+      </AlertProvider>
+    </AuthProvider>
+  );
+}

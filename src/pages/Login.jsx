@@ -8,17 +8,17 @@ export default function Login() {
   const [form, setForm] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    const success = login(form.email, form.password);
+  const handleSubmit = async (e) => {
+  e.preventDefault();
 
-    if (success) {
-      navigate("/dashboard");
-    } else {
-      setError("Credenciales incorrectas");
-    }
-  };
+  const success = await login(form.email, form.password);
 
+  if (success) {
+    navigate("/dashboard");
+  } else {
+    setError("Credenciales incorrectas");
+  }
+};
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 px-4">
       <div className="w-full max-w-md bg-gray-900/70 backdrop-blur-md rounded-2xl shadow-2xl p-8 border border-gray-800">

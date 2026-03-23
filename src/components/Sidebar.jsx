@@ -20,7 +20,8 @@ export default function Sidebar() {
     { name: "Ventas", path: "/ventas", icon: <ShoppingBag size={20} /> },
     { name: "Productos", path: "/productos", icon: <Box size={20} /> },
     { name: "Clientes", path: "/clientes", icon: <Users size={20} /> },
-    { name: "Reportes", path: "#", icon: <BarChart3 size={20} /> },
+    { name: "Reportes", path: "/reportes", icon: <BarChart3 size={20} /> },
+    { name: "Proveedores", path: "/proveedores", icon: <Users size={20} /> },
   ];
 
   const handleLogout = () => {

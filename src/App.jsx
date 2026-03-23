@@ -4,6 +4,8 @@ import { AlertProvider } from "./context/AlertContext";
 import GlobalAlert from "./components/GlobalAlert";
 
 import Login from "./pages/Login";
+import Proveedores from "./pages/Proveedores";
+import Reportes from "./pages/Reportes";
 import Dashboard from "./pages/Dashboard";
 import Ventas from "./pages/Ventas";
 import Productos from "./pages/Productos";
@@ -66,6 +68,30 @@ function AppContent() {
             user ? (
               <DashboardLayout>
                 <Clientes />
+              </DashboardLayout>
+            ) : (
+              <Navigate to="/" />
+            )
+          }
+        />
+        <Route
+          path="/proveedores"
+          element={
+            user ? (
+              <DashboardLayout>
+                <Proveedores />
+              </DashboardLayout>
+            ) : (
+              <Navigate to="/" />
+            )
+          }
+        />
+        <Route
+          path="/reportes"
+          element={
+            user ? (
+              <DashboardLayout>
+                <Reportes />
               </DashboardLayout>
             ) : (
               <Navigate to="/" />

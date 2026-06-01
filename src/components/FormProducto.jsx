@@ -1,14 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { X } from "lucide-react";
 
-/**
- * FormProducto.jsx
- * - Frontend sólo (simula categorías/proveedores)
- * - Modal para crear categoría (simple)
- * - Modal para crear proveedor (extendido: empresa, contacto, teléfono, email, dirección)
- */
+const BASE_URL = "http://localhost:3000/api";
 
-export default function FormProducto() {
+export default function FormProducto({ producto, onGuardar, onClose }) {
   const [form, setForm] = useState({
     nombre: "",
     descripcion: "",
@@ -17,427 +13,487 @@ export default function FormProducto() {
     codigo_barras: "",
     categoria_id: "",
     proveedor_id: "",
+    tipo_venta: "unidad",
+    unidad_medida: "unidad",
   });
 
-  const [categorias, setCategorias] = useState([
-    { id: 1, nombre: "Papelería" },
-    { id: 2, nombre: "Limpieza" },
-  ]);
+  const [categorias, setCategorias] = useState([]);
+  const [proveedores, setProveedores] = useState([]);
 
-  // proveedores ahora con campos extendidos
-  const [proveedores, setProveedores] = useState([
-    { id: 1, empresa: "Distribuidora Sur", contacto: "Lucía", telefono: "341-123456", email: "ventas@sur.com", direccion: "Calle A 123" },
-    { id: 2, empresa: "Mayorista Norte", contacto: "Carlos", telefono: "341-987654", email: "info@norte.com", direccion: "Av B 456" },
-  ]);
-
-  // UI / modales / mensajes
   const [showCategoriaModal, setShowCategoriaModal] = useState(false);
   const [showProveedorModal, setShowProveedorModal] = useState(false);
   const [nuevaCategoria, setNuevaCategoria] = useState("");
-  const [mensaje, setMensaje] = useState("");
+  const [mensaje, setMensaje] = useState({ texto: "", tipo: "" });
+  const [loading, setLoading] = useState(false);
 
-  // campos temporales para crear proveedor
   const [provEmpresa, setProvEmpresa] = useState("");
   const [provContacto, setProvContacto] = useState("");
   const [provTelefono, setProvTelefono] = useState("");
   const [provEmail, setProvEmail] = useState("");
   const [provDireccion, setProvDireccion] = useState("");
 
-  const handleChange = (e) => {
-    setForm((s) => ({ ...s, [e.target.name]: e.target.value }));
+  // ─── Carga inicial ───────────────────────────────────────────────────────
+  useEffect(() => {
+    fetchCategorias();
+    fetchProveedores();
+  }, []);
+
+  // ─── Precargar datos al editar ───────────────────────────────────────────
+  useEffect(() => {
+    if (producto) {
+      setForm({
+        nombre: producto.nombre || "",
+        descripcion: producto.descripcion || "",
+        precio: producto.precio || "",
+        stock: producto.stock || "",
+        codigo_barras: producto.codigo_barras || "",
+        categoria_id: String(producto.categoria_id || ""),
+        proveedor_id: String(producto.proveedor_id || ""),
+        tipo_venta: producto.tipo_venta || "unidad",
+        unidad_medida: producto.unidad_medida || "unidad",
+      });
+    }
+  }, [producto]);
+
+  const fetchCategorias = async () => {
+    try {
+      const res = await fetch(`${BASE_URL}/categorias`);
+      if (!res.ok) throw new Error();
+      setCategorias(await res.json());
+    } catch {
+      mostrarMensaje("Error al cargar categorías", "error");
+    }
   };
 
-  const handleSubmit = (e) => {
+  const fetchProveedores = async () => {
+    try {
+      const res = await fetch(`${BASE_URL}/provedores`);
+      if (!res.ok) throw new Error();
+      setProveedores(await res.json());
+    } catch {
+      mostrarMensaje("Error al cargar proveedores", "error");
+    }
+  };
+
+  // ─── Helpers ─────────────────────────────────────────────────────────────
+  const mostrarMensaje = (texto, tipo = "success") => {
+    setMensaje({ texto, tipo });
+    setTimeout(() => setMensaje({ texto: "", tipo: "" }), 3000);
+  };
+
+  const handleChange = (e) =>
+    setForm((s) => ({ ...s, [e.target.name]: e.target.value }));
+
+  // ─── Guardar producto ─────────────────────────────────────────────────────
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.nombre.trim() || !form.precio || !form.stock) {
-      setMensaje("Completar nombre, precio y stock.");
-      setTimeout(() => setMensaje(""), 2500);
+      mostrarMensaje("Completá nombre, precio y stock.", "error");
       return;
     }
-
-    // simulación de guardado
-    setMensaje(`✅ Producto "${form.nombre}" cargado correctamente`);
-    setForm({
-      nombre: "",
-      descripcion: "",
-      precio: "",
-      stock: "",
-      codigo_barras: "",
-      categoria_id: "",
-      proveedor_id: "",
-    });
-    setTimeout(() => setMensaje(""), 3000);
-  };
-
-  const agregarCategoria = () => {
-    if (!nuevaCategoria.trim()) return;
-    const nueva = { id: categorias.length + 1, nombre: nuevaCategoria.trim() };
-    setCategorias((c) => [...c, nueva]);
-    setNuevaCategoria("");
-    setShowCategoriaModal(false);
-    setMensaje("✅ Categoría creada");
-    setTimeout(() => setMensaje(""), 2000);
-  };
-
-  const agregarProveedor = () => {
-    if (!provEmpresa.trim() && !provContacto.trim()) {
-      setMensaje("Completá al menos el nombre de la empresa o el contacto.");
-      setTimeout(() => setMensaje(""), 2500);
-      return;
-    }
-
-    const nuevo = {
-      id: proveedores.length + 1,
-      empresa: provEmpresa.trim() || "(Sin nombre empresa)",
-      contacto: provContacto.trim() || "(Sin contacto)",
-      telefono: provTelefono.trim(),
-      email: provEmail.trim(),
-      direccion: provDireccion.trim(),
+    const body = {
+      ...form,
+      precio: Number(form.precio),
+      stock: Number(form.stock),
+      categoria_id: Number(form.categoria_id),
+      proveedor_id: Number(form.proveedor_id),
     };
+    try {
+      setLoading(true);
+      const isEditing = Boolean(producto);
+      const url = isEditing ? `${BASE_URL}/productos/${producto.id}` : `${BASE_URL}/productos`;
+      const method = isEditing ? "PUT" : "POST";
 
-    setProveedores((p) => [...p, nuevo]);
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
 
-    // seleccionar automáticamente el proveedor recién creado
-    setForm((s) => ({ ...s, proveedor_id: String(nuevo.id) }));
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        const msg = (errorData?.message || errorData?.error || "").toLowerCase();
+        if (msg.includes("duplicate") || msg.includes("unique") || msg.includes("codigo_barras")) {
+          throw new Error("Ya existe un producto con ese código de barras");
+        }
+        throw new Error(isEditing ? "Error al actualizar el producto" : "Error al guardar el producto");
+      }
 
-    // limpiar modal
-    setProvEmpresa("");
-    setProvContacto("");
-    setProvTelefono("");
-    setProvEmail("");
-    setProvDireccion("");
-    setShowProveedorModal(false);
+      const resultado = await res.json();
+      mostrarMensaje(`Producto "${form.nombre}" ${isEditing ? "actualizado" : "guardado"} correctamente`);
 
-    setMensaje("✅ Proveedor creado y seleccionado");
-    setTimeout(() => setMensaje(""), 2500);
+      if (isEditing) {
+        setTimeout(() => { onGuardar(resultado); onClose?.(); }, 1200);
+      } else {
+        setForm({
+          nombre: "", descripcion: "", precio: "", stock: "",
+          codigo_barras: "", categoria_id: "", proveedor_id: "",
+          tipo_venta: "unidad", unidad_medida: "unidad",
+        });
+        setTimeout(() => { onGuardar(resultado); }, 1200);
+      }
+    } catch (err) {
+      mostrarMensaje(err.message || "Error al guardar el producto", "error");
+    } finally {
+      setLoading(false);
+    }
   };
 
+  // ─── Crear categoría ──────────────────────────────────────────────────────
+  const agregarCategoria = async () => {
+    if (!nuevaCategoria.trim()) return;
+    try {
+      const res = await fetch(`${BASE_URL}/categorias`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nombre: nuevaCategoria.trim() }),
+      });
+      if (!res.ok) throw new Error();
+      const nueva = await res.json();
+      setCategorias((c) => [...c, nueva]);
+      setForm((s) => ({ ...s, categoria_id: String(nueva.id) }));
+      setNuevaCategoria("");
+      setShowCategoriaModal(false);
+      mostrarMensaje("Categoría creada y seleccionada");
+    } catch {
+      mostrarMensaje("Error al crear la categoría", "error");
+    }
+  };
+
+  // ─── Crear proveedor ──────────────────────────────────────────────────────
+  const agregarProveedor = async () => {
+    if (!provEmpresa.trim() && !provContacto.trim()) {
+      mostrarMensaje("Completá al menos empresa o contacto.", "error");
+      return;
+    }
+    try {
+      const res = await fetch(`${BASE_URL}/provedores`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nombre: provEmpresa.trim() || "(Sin nombre)",
+          contacto: provContacto.trim(),
+          telefono: provTelefono.trim(),
+        }),
+      });
+      if (!res.ok) throw new Error();
+      const nuevo = await res.json();
+      setProveedores((p) => [...p, nuevo]);
+      setForm((s) => ({ ...s, proveedor_id: String(nuevo.id) }));
+      setProvEmpresa(""); setProvContacto(""); setProvTelefono("");
+      setProvEmail(""); setProvDireccion("");
+      setShowProveedorModal(false);
+      mostrarMensaje("Proveedor creado y seleccionado");
+    } catch {
+      mostrarMensaje("Error al crear el proveedor", "error");
+    }
+  };
+
+  // ─── Render ───────────────────────────────────────────────────────────────
   return (
-    <div className="max-w-4xl mx-auto bg-white rounded-2xl shadow-xl p-8 mt-8 border border-gray-100 relative">
-      <h2 className="text-3xl font-semibold text-gray-800 mb-4 text-center">
-        Registrar nuevo producto
-      </h2>
+    <div className="max-w-4xl mx-auto mt-8 px-4">
+      <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
 
-      {mensaje && (
-        <motion.div
-          initial={{ opacity: 0, y: -8 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -8 }}
-          className="mb-4 text-center text-sm font-medium text-white bg-green-600 px-4 py-2 rounded-lg inline-block"
-        >
-          {mensaje}
-        </motion.div>
-      )}
-
-      <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-6 mt-4">
-        <div>
-          <label className="block text-gray-700 mb-1">Nombre</label>
-          <input
-            name="nombre"
-            value={form.nombre}
-            onChange={handleChange}
-            placeholder="Lapicera azul"
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-400 outline-none"
-            required
-          />
+        {/* Header */}
+        <div className="px-8 py-6 border-b border-gray-100">
+          <h2 className="text-lg font-semibold text-gray-900">{producto ? "Editar producto" : "Registrar nuevo producto"}</h2>
+          <p className="text-sm text-gray-400 mt-0.5">{producto ? "Modificá los datos del producto" : "Completá los datos para agregar un producto al inventario"}</p>
         </div>
 
-        <div>
-          <label className="block text-gray-700 mb-1">Código de barras</label>
-          <input
-            name="codigo_barras"
-            value={form.codigo_barras}
-            onChange={handleChange}
-            placeholder="123456789"
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-400 outline-none"
-          />
-        </div>
+        {/* Mensaje */}
+        <AnimatePresence>
+          {mensaje.texto && (
+            <motion.div
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className={`mx-8 mt-4 px-4 py-2.5 rounded-lg text-sm font-medium ${
+                mensaje.tipo === "error"
+                  ? "bg-red-50 text-red-600 border border-red-100"
+                  : "bg-green-50 text-green-700 border border-green-100"
+              }`}
+            >
+              {mensaje.texto}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-        <div className="col-span-2">
-          <label className="block text-gray-700 mb-1">Descripción</label>
-          <textarea
-            name="descripcion"
-            value={form.descripcion}
-            onChange={handleChange}
-            rows="2"
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-400 outline-none resize-none"
-            placeholder="Detalles del producto..."
-          />
-        </div>
+        {/* Formulario */}
+        <form onSubmit={handleSubmit} className="px-8 py-6 grid grid-cols-2 gap-5">
 
-        <div>
-          <label className="block text-gray-700 mb-1">Precio ($)</label>
-          <input
-            name="precio"
-            value={form.precio}
-            onChange={handleChange}
-            type="number"
-            min="0"
-            step="0.01"
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-400 outline-none"
-            required
-          />
-        </div>
+          {/* Nombre */}
+          <Field label="Nombre" required>
+            <input
+              name="nombre" value={form.nombre} onChange={handleChange}
+              placeholder="Lapicera azul"
+              className={inputCls}
+              required
+            />
+          </Field>
 
-        <div>
-          <label className="block text-gray-700 mb-1">Stock</label>
-          <input
-            name="stock"
-            value={form.stock}
-            onChange={handleChange}
-            type="number"
-            min="0"
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-400 outline-none"
-            required
-          />
-        </div>
+          {/* Código de barras */}
+          <Field label="Código de barras">
+            <input
+              name="codigo_barras" value={form.codigo_barras} onChange={handleChange}
+              placeholder="123456789"
+              className={inputCls}
+            />
+          </Field>
 
-        {/* Categoria */}
-        <div>
-          <label className="block text-gray-700 mb-1">Categoría</label>
-          <div className="flex gap-2">
+          {/* Descripción */}
+          <Field label="Descripción" className="col-span-2">
+            <textarea
+              name="descripcion" value={form.descripcion} onChange={handleChange}
+              rows={2}
+              placeholder="Detalles del producto..."
+              className={`${inputCls} resize-none`}
+            />
+          </Field>
+
+          {/* Precio */}
+          <Field label="Precio">
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+              <input
+                name="precio" value={form.precio} onChange={handleChange}
+                type="number" min="0" step="0.01" placeholder="0"
+                className={`${inputCls} pl-7`}
+                required
+              />
+            </div>
+          </Field>
+
+          {/* Stock */}
+          <Field label={`Stock (${form.unidad_medida})`} required>
+            <input
+              name="stock" value={form.stock} onChange={handleChange}
+              type="number" min="0" step="0.001" placeholder="0.000"
+              className={inputCls}
+              required
+            />
+          </Field>
+
+          {/* Categoría */}
+          <Field label="Categoría" required>
+            <div className="flex gap-2">
+              <select
+                name="categoria_id" value={form.categoria_id} onChange={handleChange}
+                className={`${inputCls} flex-1`}
+                required
+              >
+                <option value="">Seleccionar...</option>
+                {categorias.map((c) => (
+                  <option key={c.id} value={String(c.id)}>{c.nombre}</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => setShowCategoriaModal(true)}
+                className="w-10 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-lg transition-colors flex items-center justify-center"
+                title="Nueva categoría"
+              >
+                +
+              </button>
+            </div>
+          </Field>
+
+          {/* Proveedor */}
+          <Field label="Proveedor" required>
+            <div className="flex gap-2">
+              <select
+                name="proveedor_id" value={form.proveedor_id} onChange={handleChange}
+                className={`${inputCls} flex-1`}
+                required
+              >
+                <option value="">Seleccionar proveedor...</option>
+                {proveedores.map((p) => (
+                  <option key={p.id} value={String(p.id)}>
+                    {p.nombre} — {p.contacto}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => setShowProveedorModal(true)}
+                className="w-10 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-lg transition-colors flex items-center justify-center"
+                title="Nuevo proveedor"
+              >
+                +
+              </button>
+            </div>
+          </Field>
+
+          {/* Tipo de venta */}
+          <Field label="Tipo de venta" required>
             <select
-              name="categoria_id"
-              value={form.categoria_id}
-              onChange={handleChange}
-              className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-400 outline-none"
+              name="tipo_venta" value={form.tipo_venta} onChange={handleChange}
+              className={inputCls}
               required
             >
-              <option value="">Seleccionar...</option>
-              {categorias.map((c) => (
-                <option key={c.id} value={String(c.id)}>
-                  {c.nombre}
-                </option>
-              ))}
+              <option value="unidad">Unidad</option>
+              <option value="peso">Peso</option>
+              <option value="metro">Metro</option>
+              <option value="litro">Litro</option>
             </select>
-            <button
-              type="button"
-              onClick={() => setShowCategoriaModal(true)}
-              className="bg-blue-600 text-white px-3 rounded-lg hover:bg-blue-700 transition"
-              title="Crear categoría"
-            >
-              +
-            </button>
-          </div>
-        </div>
+          </Field>
 
-        {/* Proveedor (con campos extendidos al crear) */}
-        <div>
-          <label className="block text-gray-700 mb-1">Proveedor</label>
-          <div className="flex gap-2">
+          {/* Unidad de medida */}
+          <Field label="Unidad de medida" required>
             <select
-              name="proveedor_id"
-              value={form.proveedor_id}
-              onChange={handleChange}
-              className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-400 outline-none"
+              name="unidad_medida" value={form.unidad_medida} onChange={handleChange}
+              className={inputCls}
               required
             >
-              <option value="">Seleccionar proveedor...</option>
-              {proveedores.map((p) => (
-                <option key={p.id} value={String(p.id)}>
-                  {p.empresa} — {p.contacto}
-                </option>
-              ))}
+              <option value="unidad">Unidad</option>
+              <option value="kg">Kilogramo (kg)</option>
+              <option value="gr">Gramo (gr)</option>
+              <option value="lt">Litro (lt)</option>
+              <option value="mt">Metro (mt)</option>
             </select>
+          </Field>
+
+          {/* Submit */}
+          <div className="col-span-2 flex justify-end pt-2 border-t border-gray-100 mt-2">
             <button
-              type="button"
-              onClick={() => setShowProveedorModal(true)}
-              className="bg-blue-600 text-white px-3 rounded-lg hover:bg-blue-700 transition"
-              title="Crear proveedor"
+              type="submit"
+              disabled={loading}
+              className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 transition-colors text-white px-6 py-2.5 rounded-lg text-sm font-medium"
             >
-              +
+              {loading ? "Guardando..." : producto ? "Guardar cambios" : "Guardar producto"}
             </button>
           </div>
-        </div>
+        </form>
+      </div>
 
-        <div className="col-span-2 flex justify-end mt-2">
-          <button
-            type="submit"
-            className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition"
-          >
-            Guardar producto
-          </button>
-        </div>
-      </form>
-
-      {/* Modal Nueva Categoría (simple) */}
+      {/* Modal Categoría */}
       <AnimatePresence>
         {showCategoriaModal && (
-          <ModalSimple
-            titulo="Nueva categoría"
-            valor={nuevaCategoria}
-            setValor={setNuevaCategoria}
-            onGuardar={() => {
-              if (!nuevaCategoria.trim()) return;
-              const nueva = { id: categorias.length + 1, nombre: nuevaCategoria.trim() };
-              setCategorias((c) => [...c, nueva]);
-              setForm((s) => ({ ...s, categoria_id: String(nueva.id) }));
-              setNuevaCategoria("");
-              setShowCategoriaModal(false);
-              setMensaje("✅ Categoría creada y seleccionada");
-              setTimeout(() => setMensaje(""), 2000);
-            }}
-            onCerrar={() => setShowCategoriaModal(false)}
-          />
+          <Modal onClose={() => setShowCategoriaModal(false)} titulo="Nueva categoría">
+            <div>
+              <label className={labelCls}>Nombre de la categoría</label>
+              <input
+                value={nuevaCategoria}
+                onChange={(e) => setNuevaCategoria(e.target.value)}
+                placeholder="Ej: Papelería"
+                className={inputCls}
+                autoFocus
+                onKeyDown={(e) => e.key === "Enter" && agregarCategoria()}
+              />
+            </div>
+            <div className="flex justify-end gap-2 mt-5">
+              <BtnSecundario onClick={() => setShowCategoriaModal(false)}>Cancelar</BtnSecundario>
+              <BtnPrimario onClick={agregarCategoria}>Guardar</BtnPrimario>
+            </div>
+          </Modal>
         )}
       </AnimatePresence>
 
-      {/* Modal Nuevo Proveedor (extendido) */}
+      {/* Modal Proveedor */}
       <AnimatePresence>
         {showProveedorModal && (
-          <ModalProveedor
-            empresa={provEmpresa}
-            setEmpresa={setProvEmpresa}
-            contacto={provContacto}
-            setContacto={setProvContacto}
-            telefono={provTelefono}
-            setTelefono={setProvTelefono}
-            email={provEmail}
-            setEmail={setProvEmail}
-            direccion={provDireccion}
-            setDireccion={setProvDireccion}
-            onGuardar={agregarProveedor}
-            onCerrar={() => setShowProveedorModal(false)}
-          />
+          <Modal onClose={() => setShowProveedorModal(false)} titulo="Nuevo proveedor">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={labelCls}>Nombre</label>
+                <input value={provEmpresa} onChange={(e) => setProvEmpresa(e.target.value)}
+                  placeholder="Distribuidora Sur" className={inputCls} autoFocus />
+              </div>
+              <div>
+                <label className={labelCls}>Persona de contacto</label>
+                <input value={provContacto} onChange={(e) => setProvContacto(e.target.value)}
+                  placeholder="Juan Pérez" className={inputCls} />
+              </div>
+              <div>
+                <label className={labelCls}>Teléfono</label>
+                <input value={provTelefono} onChange={(e) => setProvTelefono(e.target.value)}
+                  placeholder="341-xxxxxxx" className={inputCls} />
+              </div>
+              <div>
+                <label className={labelCls}>Email</label>
+                <input value={provEmail} onChange={(e) => setProvEmail(e.target.value)}
+                  type="email" placeholder="proveedor@ejemplo.com" className={inputCls} />
+              </div>
+              <div className="col-span-2">
+                <label className={labelCls}>Dirección</label>
+                <input value={provDireccion} onChange={(e) => setProvDireccion(e.target.value)}
+                  placeholder="Calle 123, Ciudad" className={inputCls} />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-5">
+              <BtnSecundario onClick={() => setShowProveedorModal(false)}>Cancelar</BtnSecundario>
+              <BtnPrimario onClick={agregarProveedor}>Guardar proveedor</BtnPrimario>
+            </div>
+          </Modal>
         )}
       </AnimatePresence>
     </div>
   );
 }
 
-/* ---------- Modal simple (categoría) ---------- */
-function ModalSimple({ titulo, valor, setValor, onGuardar, onCerrar }) {
+// ─── Componentes auxiliares ───────────────────────────────────────────────────
+
+const inputCls =
+  "w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-blue-400 focus:bg-white transition-colors";
+
+const labelCls =
+  "block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5";
+
+function Field({ label, children, className = "", required }) {
+  return (
+    <div className={className}>
+      <label className={labelCls}>
+        {label}{required && <span className="text-red-400 ml-0.5">*</span>}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+function Modal({ titulo, onClose, children }) {
   return (
     <motion.div
-      className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4"
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      onClick={onClose}
     >
       <motion.div
-        className="bg-white rounded-2xl shadow-xl w-full max-w-md p-5"
-        initial={{ scale: 0.9 }}
-        animate={{ scale: 1 }}
-        exit={{ scale: 0.9 }}
+        className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden"
+        initial={{ scale: 0.95, y: 10 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95 }}
+        onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="text-lg font-semibold mb-3">{titulo}</h3>
-        <input
-          value={valor}
-          onChange={(e) => setValor(e.target.value)}
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 mb-4 outline-none focus:ring-2 focus:ring-blue-400"
-          placeholder="Nombre de la categoría..."
-        />
-        <div className="flex justify-end gap-2">
-          <button onClick={onCerrar} className="px-3 py-1 rounded-md bg-gray-200">
-            Cancelar
-          </button>
+        <div className="flex justify-between items-center px-6 py-5 border-b border-gray-100">
+          <h3 className="text-base font-semibold text-gray-900">{titulo}</h3>
           <button
-            onClick={onGuardar}
-            className="px-3 py-1 rounded-md bg-blue-600 text-white"
+            onClick={onClose}
+            className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors"
           >
-            Guardar
+            <X size={15} />
           </button>
         </div>
+        <div className="px-6 py-5">{children}</div>
       </motion.div>
     </motion.div>
   );
 }
 
-/* ---------- Modal proveedor (extendido) ---------- */
-function ModalProveedor({
-  empresa,
-  setEmpresa,
-  contacto,
-  setContacto,
-  telefono,
-  setTelefono,
-  email,
-  setEmail,
-  direccion,
-  setDireccion,
-  onGuardar,
-  onCerrar,
-}) {
+function BtnPrimario({ children, onClick }) {
   return (
-    <motion.div
-      className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
+    <button
+      type="button" onClick={onClick}
+      className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
     >
-      <motion.div
-        className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6"
-        initial={{ scale: 0.9 }}
-        animate={{ scale: 1 }}
-        exit={{ scale: 0.9 }}
-      >
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-lg font-semibold">Nuevo proveedor</h3>
-          <button onClick={onCerrar} className="text-gray-500 hover:text-gray-700">✕</button>
-        </div>
+      {children}
+    </button>
+  );
+}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div>
-            <label className="text-sm text-gray-600 mb-1 block">Empresa</label>
-            <input
-              value={empresa}
-              onChange={(e) => setEmpresa(e.target.value)}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-400 outline-none"
-              placeholder="Nombre de la empresa"
-            />
-          </div>
-
-          <div>
-            <label className="text-sm text-gray-600 mb-1 block">Persona de contacto</label>
-            <input
-              value={contacto}
-              onChange={(e) => setContacto(e.target.value)}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-400 outline-none"
-              placeholder="Ej: Juan Pérez"
-            />
-          </div>
-
-          <div>
-            <label className="text-sm text-gray-600 mb-1 block">Teléfono</label>
-            <input
-              value={telefono}
-              onChange={(e) => setTelefono(e.target.value)}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-400 outline-none"
-              placeholder="341-xxxxxxx"
-            />
-          </div>
-
-          <div>
-            <label className="text-sm text-gray-600 mb-1 block">Email</label>
-            <input
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              type="email"
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-400 outline-none"
-              placeholder="proveedor@ejemplo.com"
-            />
-          </div>
-
-          <div className="md:col-span-2">
-            <label className="text-sm text-gray-600 mb-1 block">Dirección</label>
-            <input
-              value={direccion}
-              onChange={(e) => setDireccion(e.target.value)}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-400 outline-none"
-              placeholder="Calle 123, Ciudad"
-            />
-          </div>
-        </div>
-
-        <div className="flex justify-end gap-2 mt-4">
-          <button onClick={onCerrar} className="px-4 py-2 bg-gray-200 rounded-md">
-            Cancelar
-          </button>
-          <button onClick={onGuardar} className="px-4 py-2 bg-blue-600 text-white rounded-md">
-            Guardar proveedor
-          </button>
-        </div>
-      </motion.div>
-    </motion.div>
+function BtnSecundario({ children, onClick }) {
+  return (
+    <button
+      type="button" onClick={onClick}
+      className="px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+    >
+      {children}
+    </button>
   );
 }

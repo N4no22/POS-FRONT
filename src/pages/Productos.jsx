@@ -1,177 +1,249 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { PlusCircle, Search, Package, Pencil, Trash2 } from "lucide-react";
 import FormProducto from "../components/FormProducto";
+
+const API_URL = "http://localhost:3000/api/productos";
 
 export default function Productos() {
   const [showForm, setShowForm] = useState(false);
   const [productoSeleccionado, setProductoSeleccionado] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [productos, setProductos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // 📦 Datos locales simulados (temporal hasta conectar al backend)
-  const [productos, setProductos] = useState([
-    {
-      id: 1,
-      nombre: "Lapicera Azul",
-      codigo_barras: "123456789",
-      precio: 120,
-      stock: 100,
-      categoria: "Librería",
-      proveedor: "Distribuidora Norte",
-      descripcion: "Lapicera tinta azul de plástico",
-    },
-    {
-      id: 2,
-      nombre: "Cuaderno A4",
-      codigo_barras: "987654321",
-      precio: 850,
-      stock: 50,
-      categoria: "Papelería",
-      proveedor: "OfiProve",
-      descripcion: "Cuaderno universitario 80 hojas rayado",
-    },
-  ]);
+  // ─── Carga inicial ───────────────────────────────────────────────────────
+  useEffect(() => {
+    fetchProductos();
+  }, []);
 
-  // 🔍 Filtro de búsqueda
+  const fetchProductos = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await fetch(API_URL);
+      if (!res.ok) throw new Error("Error al cargar los productos");
+      setProductos(await res.json());
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ─── Crear o editar ──────────────────────────────────────────────────────
+  const handleGuardar = async (producto) => {
+    try {
+      if (productoSeleccionado) {
+        // PUT - editar
+        const res = await fetch(`${API_URL}/${producto.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(producto),
+        });
+        if (!res.ok) throw new Error("Error al actualizar el producto");
+        const actualizado = await res.json();
+        setProductos((prev) =>
+          prev.map((p) => (p.id === actualizado.id ? actualizado : p))
+        );
+      } else {
+        // POST - crear (lo maneja FormProducto, solo refrescamos)
+        await fetchProductos();
+      }
+      setShowForm(false);
+      setProductoSeleccionado(null);
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  // ─── Eliminar ────────────────────────────────────────────────────────────
+  const handleEliminar = async (id) => {
+    if (!confirm("¿Estás seguro de eliminar este producto?")) return;
+    try {
+      const res = await fetch(`${API_URL}/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Error al eliminar el producto");
+      setProductos((prev) => prev.filter((p) => p.id !== id));
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
   const filtered = productos.filter(
     (p) =>
-      p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.codigo_barras.includes(searchTerm)
+      p.nombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.codigo_barras?.includes(searchTerm)
   );
 
-  // 💾 Crear o editar producto
-  const handleGuardar = (nuevoProducto) => {
-    if (productoSeleccionado) {
-      // 🔵 Editar
-      setProductos((prev) =>
-        prev.map((p) => (p.id === nuevoProducto.id ? nuevoProducto : p))
-      );
-    } else {
-      // 🟢 Crear
-      setProductos((prev) => [...prev, { ...nuevoProducto, id: Date.now() }]);
-    }
-
-    setShowForm(false);
-    setProductoSeleccionado(null);
-  };
-
-  // ❌ Eliminar producto
-  const handleEliminar = (id) => {
-    if (confirm("¿Estás seguro de eliminar este producto?")) {
-      setProductos((prev) => prev.filter((p) => p.id !== id));
-    }
-  };
+  // ─── Totales ─────────────────────────────────────────────────────────────
+  const sinStock = productos.filter((p) => Number(p.stock) === 0).length;
+  const stockBajo = productos.filter(
+    (p) => Number(p.stock) > 0 && Number(p.stock) <= 5
+  ).length;
 
   return (
-    <div className="flex flex-col w-full min-h-screen bg-gray-50 px-6 py-6">
-      {/* ENCABEZADO */}
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-          <Package className="text-blue-600" /> Productos
-        </h1>
+    <div className="flex flex-col w-full min-h-screen bg-gray-50 px-6 py-7">
 
+      {/* Header */}
+      <div className="flex justify-between items-start mb-6">
+        <div>
+          <h1 className="text-2xl font-semibold text-gray-900 flex items-center gap-2">
+            <Package className="text-blue-600" size={22} /> Productos
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">Gestión de inventario y catálogo</p>
+        </div>
         <button
           onClick={() => {
             setProductoSeleccionado(null);
             setShowForm(true);
           }}
-          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition shadow-md hover:shadow-blue-300/30"
+          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 transition-colors text-white px-4 py-2.5 rounded-lg text-sm font-medium shadow-sm"
         >
-          <PlusCircle size={18} /> Nuevo producto
+          <PlusCircle size={16} /> Nuevo producto
         </button>
       </div>
 
-      {/* BARRA DE BÚSQUEDA */}
-      <div className="flex items-center gap-2 bg-white rounded-xl shadow-sm border border-gray-200 px-4 py-2 mb-8">
-        <Search className="text-gray-500" />
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
+          <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">Total productos</p>
+          <p className="text-2xl font-semibold text-gray-900">{productos.length}</p>
+        </div>
+        <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
+          <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">Stock bajo (≤5)</p>
+          <p className="text-2xl font-semibold text-yellow-500">{stockBajo}</p>
+        </div>
+        <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
+          <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">Sin stock</p>
+          <p className="text-2xl font-semibold text-red-600">{sinStock}</p>
+        </div>
+      </div>
+
+      {/* Buscador */}
+      <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-4 py-2.5 mb-4 shadow-sm">
+        <Search className="text-gray-400" size={16} />
         <input
           type="text"
           placeholder="Buscar por nombre o código de barras..."
-          className="w-full bg-transparent outline-none text-gray-700 placeholder-gray-400"
+          className="w-full bg-transparent outline-none text-sm text-gray-700 placeholder-gray-400"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
       </div>
 
-      {/* LISTADO DE PRODUCTOS */}
-      {filtered.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {filtered.map((p) => (
-            <motion.div
-              key={p.id}
-              whileHover={{ scale: 1.03 }}
-              className="bg-white border border-gray-200 shadow-sm rounded-xl p-4 transition-all hover:shadow-lg"
-            >
-              <h3 className="font-semibold text-gray-800 text-lg">{p.nombre}</h3>
-              <p className="text-gray-500 text-sm mt-1">
-                Código: {p.codigo_barras}
-              </p>
-              <p className="text-gray-500 text-sm mt-1">
-                Categoría: {p.categoria}
-              </p>
-              <p className="text-gray-500 text-sm mt-1">
-                Proveedor: {p.proveedor}
-              </p>
-              <div className="mt-3 flex justify-between items-center">
-                <span className="text-blue-600 font-bold">${p.precio}</span>
-                <span
-                  className={`px-2 py-1 text-xs rounded-full ${
-                    p.stock > 0
-                      ? "bg-green-100 text-green-700"
-                      : "bg-red-100 text-red-700"
-                  }`}
-                >
-                  {p.stock > 0 ? `Stock: ${p.stock}` : "Sin stock"}
-                </span>
-              </div>
-
-              {/* BOTONES DE ACCIÓN */}
-              <div className="flex justify-end mt-4 gap-2">
-                <button
-                  onClick={() => {
-                    setProductoSeleccionado(p);
-                    setShowForm(true);
-                  }}
-                  className="flex items-center gap-1 text-blue-600 hover:text-blue-800 text-sm font-medium"
-                >
-                  <Pencil size={16} /> Editar
-                </button>
-                <button
-                  onClick={() => handleEliminar(p.id)}
-                  className="flex items-center gap-1 text-red-600 hover:text-red-800 text-sm font-medium"
-                >
-                  <Trash2 size={16} /> Eliminar
-                </button>
-              </div>
-            </motion.div>
-          ))}
-        </div>
-      ) : (
-        <div className="flex flex-col items-center justify-center py-20 text-gray-500">
-          <Package className="w-10 h-10 mb-2 text-gray-400" />
-          <p>No se encontraron productos</p>
+      {/* Estados */}
+      {loading && (
+        <p className="text-center text-gray-400 py-16 text-sm">Cargando productos...</p>
+      )}
+      {error && (
+        <div className="bg-red-50 border border-red-100 text-red-600 px-4 py-3 rounded-xl mb-4 flex justify-between items-center text-sm">
+          <span>{error}</span>
+          <button onClick={fetchProductos} className="underline font-medium">Reintentar</button>
         </div>
       )}
 
-      {/* MODAL NUEVO / EDITAR */}
+      {/* Grilla */}
+      {!loading && !error && (
+        filtered.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+            {filtered.map((p) => (
+              <motion.div
+                key={p.id}
+                whileHover={{ y: -2 }}
+                className="bg-white border border-gray-100 shadow-sm rounded-xl p-4 flex flex-col justify-between hover:shadow-md transition-shadow"
+              >
+                <div>
+                  {/* Nombre y código */}
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <h3 className="font-semibold text-gray-900 text-base leading-tight">{p.nombre}</h3>
+                    <span className={`flex-shrink-0 px-2 py-0.5 text-xs rounded-full font-medium ${
+                      Number(p.stock) === 0
+                        ? "bg-red-50 text-red-600"
+                        : Number(p.stock) <= 5
+                        ? "bg-yellow-50 text-yellow-600"
+                        : "bg-green-50 text-green-600"
+                    }`}>
+                      {Number(p.stock) === 0
+                        ? "Sin stock"
+                        : `${Number(p.stock).toLocaleString("es-AR", { maximumFractionDigits: 3 })} ${p.unidad_medida || "u."}`}
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-gray-400 mb-1">Cód: {p.codigo_barras || "—"}</p>
+
+                  {p.descripcion && (
+                    <p className="text-xs text-gray-500 mt-1 line-clamp-2">{p.descripcion}</p>
+                  )}
+
+                  <div className="mt-3 space-y-1">
+                    {p.categoria && (
+                      <p className="text-xs text-gray-500">
+                        <span className="font-medium text-gray-600">Categoría:</span> {p.categoria}
+                      </p>
+                    )}
+                    {p.proveedor && (
+                      <p className="text-xs text-gray-500">
+                        <span className="font-medium text-gray-600">Proveedor:</span> {p.proveedor}
+                      </p>
+                    )}
+                    {p.tipo_venta && (
+                      <p className="text-xs text-gray-500">
+                        <span className="font-medium text-gray-600">Venta:</span> {p.tipo_venta} / {p.unidad_medida}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-4 pt-3 border-t border-gray-100 flex justify-between items-center">
+                  <span className="text-blue-600 font-bold text-base">
+                    ${Number(p.precio).toLocaleString("es-AR")}
+                  </span>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => { setProductoSeleccionado(p); setShowForm(true); }}
+                      className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:text-blue-600 hover:bg-blue-50 hover:border-blue-200 transition-colors"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                    <button
+                      onClick={() => handleEliminar(p.id)}
+                      className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:text-red-600 hover:bg-red-50 hover:border-red-200 transition-colors"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+            <Package className="w-10 h-10 mb-3 text-gray-300" />
+            <p className="text-sm">No se encontraron productos</p>
+          </div>
+        )
+      )}
+
+      {/* Modal */}
       <AnimatePresence>
         {showForm && (
           <motion.div
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setShowForm(false)}
           >
             <motion.div
-              className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl overflow-y-auto max-h-[95vh]"
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-y-auto max-h-[95vh]"
               initial={{ scale: 0.95, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.95, y: 20 }}
               onClick={(e) => e.stopPropagation()}
             >
               <FormProducto
-                key={productoSeleccionado ? productoSeleccionado.id : "nuevo"} // 👈 fuerza reinicio correcto
+                key={productoSeleccionado ? productoSeleccionado.id : "nuevo"}
                 producto={productoSeleccionado}
                 onGuardar={handleGuardar}
                 onClose={() => {

@@ -1,33 +1,34 @@
-// src/context/AlertContext.jsx
 import { createContext, useContext, useState, useEffect } from "react";
 
 const AlertContext = createContext();
+const BASE_URL = "http://localhost:3000/api";
 
 export const AlertProvider = ({ children }) => {
   const [alerts, setAlerts] = useState([]);
 
-  // Simulación: chequea cada 24 horas si hay productos bajos en stock
-  useEffect(() => {
-    const checkLowStock = async () => {
-      // Esto en el futuro lo vas a reemplazar con una llamada al backend:
-      const productosBajos = [
-        { nombre: "Yerba Playadito 1kg", stock: 2 },
-        { nombre: "Azúcar Ledesma 1kg", stock: 3 },
-      ];
+  const checkLowStock = async () => {
+    try {
+      const res = await fetch(`${BASE_URL}/dashboard/bajo-stock`);
+      if (!res.ok) return;
+      const productos = await res.json();
 
-      if (productosBajos.length > 0) {
+      if (productos.length > 0) {
         setAlerts(
-          productosBajos.map(
-            (p) => `⚠️ ${p.nombre} tiene solo ${p.stock} unidades en stock`
+          productos.map(
+            (p) => `⚠️ ${p.nombre} tiene solo ${Number(p.stock).toLocaleString("es-AR", { maximumFractionDigits: 3 })} ${p.unidad_medida} en stock`
           )
         );
+      } else {
+        setAlerts([]); // limpiar si ya no hay productos bajos
       }
-    };
+    } catch {
+      // silencioso, no romper la app por esto
+    }
+  };
 
+  useEffect(() => {
     checkLowStock();
-
-    // Repetir cada 24 horas
-    const interval = setInterval(checkLowStock, 24 * 60 * 60 * 1000);
+    const interval = setInterval(checkLowStock, 5 * 60 * 1000); // cada 5 minutos
     return () => clearInterval(interval);
   }, []);
 

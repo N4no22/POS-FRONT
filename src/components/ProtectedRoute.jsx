@@ -1,18 +1,35 @@
-import { Navigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
+import { Navigate } from "react-router-dom"
+import { useAuth } from "../context/AuthContext"
 
-export default function ProtectedRoute({ children, roles }) {
-  const { user } = useAuth();
+export default function ProtectedRoute({
+  children,
+  roles
+}) {
+  const { user } = useAuth()
 
-  // 🔐 no logueado
+  // Sin sesión
   if (!user) {
-    return <Navigate to="/" />;
+    return <Navigate to="/" replace />
   }
 
-  // 🔐 validar rol
-  if (roles && !roles.includes(user.rol)) {
-    return <Navigate to="/dashboard" />; // o una página "no autorizado"
+  // Página inicial según el rol
+  const inicioPorRol =
+    user.rol === "admin"
+      ? "/dashboard"
+      : "/ventas"
+
+  // Sin autorización
+  if (
+    roles &&
+    !roles.includes(user.rol)
+  ) {
+    return (
+      <Navigate
+        to={inicioPorRol}
+        replace
+      />
+    )
   }
 
-  return children;
+  return children
 }

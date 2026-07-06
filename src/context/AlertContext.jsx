@@ -1,12 +1,18 @@
 import { createContext, useContext, useState, useEffect } from "react";
+import { useAuth } from "./AuthContext";
 
 const AlertContext = createContext();
 const BASE_URL = "http://localhost:3000/api";
 
 export const AlertProvider = ({ children }) => {
   const [alerts, setAlerts] = useState([]);
+  const { user } = useAuth();
 
   const checkLowStock = async () => {
+    if (!user) {
+      setAlerts([]);
+      return;
+    }
     try {
       const res = await fetch(`${BASE_URL}/dashboard/bajo-stock`);
       if (!res.ok) return;
@@ -19,18 +25,18 @@ export const AlertProvider = ({ children }) => {
           )
         );
       } else {
-        setAlerts([]); // limpiar si ya no hay productos bajos
+        setAlerts([]);
       }
     } catch {
-      // silencioso, no romper la app por esto
+      // silencioso
     }
   };
 
   useEffect(() => {
     checkLowStock();
-    const interval = setInterval(checkLowStock, 5 * 60 * 1000); // cada 5 minutos
+    const interval = setInterval(checkLowStock, 5 * 60 * 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [user]); // 👈 se re-ejecuta cuando cambia el user
 
   return (
     <AlertContext.Provider value={{ alerts, setAlerts }}>

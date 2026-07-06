@@ -1,258 +1,628 @@
-import { createContext, useContext, useState, useEffect } from "react";
+import {
+  createContext,
+  useContext,
+  useState
+} from "react"
 
-const AuthContext = createContext();
-const BASE_URL = "http://localhost:3000/api";
+const AuthContext = createContext()
+const BASE_URL = "http://localhost:3000/api"
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(() => {
-    const saved = localStorage.getItem("user");
-    return saved ? JSON.parse(saved) : null;
-  });
+    try {
+      const saved = sessionStorage.getItem("user")
+      const token = sessionStorage.getItem("token")
 
-  const [arqueoActivo, setArqueoActivo] = useState(() => {
-    const saved = localStorage.getItem("arqueoActivo");
-    return saved ? JSON.parse(saved) : null;
-  });
+      if (!saved || !token) return null
 
-  // Modal states
-  const [showModalAbrirArqueo, setShowModalAbrirArqueo] = useState(false);
-  const [showModalCerrarArqueo, setShowModalCerrarArqueo] = useState(false);
-  const [resumenArqueo, setResumenArqueo] = useState(null);
-  const [saldoInicial, setSaldoInicial] = useState("");
-  const [loadingArqueo, setLoadingArqueo] = useState(false);
+      const payload = JSON.parse(
+        atob(token.split(".")[1])
+      )
 
-  // ─── Verificar arqueo activo ─────────────────────────────────────────────
-  const verificarArqueoActivo = async () => {
-  try {
-    const res = await fetch(`${BASE_URL}/arqueo/activo`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
-    });
-    const data = await res.json();
-    console.log("STATUS:", res.status, "DATA:", data); // 👈 agregá esto
-    if (res.ok) {
-      if (data) {
-        setArqueoActivo(data);
-        localStorage.setItem("arqueoActivo", JSON.stringify(data));
-        return true;
+      if (payload.exp * 1000 < Date.now()) {
+        sessionStorage.clear()
+        return null
       }
-    }
-    return false;
-  } catch (err) {
-    console.log("ERROR:", err); // 👈 y esto
-    return false;
-  }
-};
 
-  // ─── Login ───────────────────────────────────────────────────────────────
+      return JSON.parse(saved)
+    } catch {
+      return null
+    }
+  })
+
+  const [arqueoActivo, setArqueoActivo] =
+    useState(() => {
+      try {
+        const saved =
+          sessionStorage.getItem("arqueoActivo")
+
+        return saved ? JSON.parse(saved) : null
+      } catch {
+        return null
+      }
+    })
+
+  const [
+    showModalAbrirArqueo,
+    setShowModalAbrirArqueo
+  ] = useState(false)
+
+  const [
+    showConfirmarCierre,
+    setShowConfirmarCierre
+  ] = useState(false)
+
+  const [showModalLogout, setShowModalLogout] =
+    useState(false)
+
+  const [saldoInicial, setSaldoInicial] =
+    useState("")
+
+  const [resumenPrevio, setResumenPrevio] =
+    useState(null)
+
+  const [loadingArqueo, setLoadingArqueo] =
+    useState(false)
+
+  const [errorArqueo, setErrorArqueo] =
+    useState("")
+
+  const authHeaders = () => ({
+    Authorization: `Bearer ${sessionStorage.getItem(
+      "token"
+    )}`
+  })
+
+  // Verificar si existe una caja abierta
+  const verificarArqueoActivo = async () => {
+    try {
+      const res = await fetch(
+        `${BASE_URL}/arqueo/activo`,
+        {
+          headers: authHeaders()
+        }
+      )
+
+      const data = await res.json().catch(() => ({}))
+
+      if (res.ok && data?.id) {
+        setArqueoActivo(data)
+
+        sessionStorage.setItem(
+          "arqueoActivo",
+          JSON.stringify(data)
+        )
+
+        return true
+      }
+
+      setArqueoActivo(null)
+      sessionStorage.removeItem("arqueoActivo")
+
+      return false
+    } catch {
+      setArqueoActivo(null)
+      sessionStorage.removeItem("arqueoActivo")
+
+      return false
+    }
+  }
+
+  // Login
   const login = async (email, password) => {
     try {
-      const res = await fetch(`${BASE_URL}/usuarios/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password })
-      });
+      const res = await fetch(
+        `${BASE_URL}/usuarios/login`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            email,
+            password
+          })
+        }
+      )
 
-      const data = await res.json();
-      if (!res.ok) return { ok: false, message: data.message };
+      const data = await res.json().catch(() => ({}))
 
-      setUser(data.usuario);
-      localStorage.setItem("user", JSON.stringify(data.usuario));
-      localStorage.setItem("token", data.token);
-      localStorage.setItem("lastActivity", Date.now());
+      if (!res.ok) {
+        return {
+          ok: false,
+          message:
+            data.message || "Error al iniciar sesión"
+        }
+      }
 
-      // Verificar si hay arqueo activo, si no mostrar modal
-      const tieneArqueo = await verificarArqueoActivo();
+      setUser(data.usuario)
+
+      sessionStorage.setItem(
+        "user",
+        JSON.stringify(data.usuario)
+      )
+
+      sessionStorage.setItem("token", data.token)
+      sessionStorage.setItem(
+        "lastActivity",
+        Date.now()
+      )
+
+      const tieneArqueo =
+        await verificarArqueoActivo()
+
       if (!tieneArqueo) {
-        setShowModalAbrirArqueo(true);
+        setShowModalAbrirArqueo(true)
       }
 
-      return { ok: true, user: data.usuario };
-    } catch {
-      return { ok: false, message: "Error de conexión" };
-    }
-  };
-
-  // ─── Abrir arqueo ────────────────────────────────────────────────────────
-  const abrirArqueo = async () => {
-    if (!user) return;
-    setLoadingArqueo(true);
-    try {
-      const res = await fetch(`${BASE_URL}/arqueo/abrir`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token")}`
-        },
-        body: JSON.stringify({
-          usuario_id: user.id,
-          saldo_anterior: saldoInicial !== "" ? Number(saldoInicial) : undefined
-        })
-      });
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      setArqueoActivo(data);
-      localStorage.setItem("arqueoActivo", JSON.stringify(data));
-      setShowModalAbrirArqueo(false);
-      setSaldoInicial("");
-    } catch {
-      alert("Error al abrir el arqueo");
-    } finally {
-      setLoadingArqueo(false);
-    }
-  };
-
-  // ─── Logout → cerrar arqueo primero ──────────────────────────────────────
-  const logout = async () => {
-  if (arqueoActivo) {
-    try {
-      setLoadingArqueo(true);
-      // ✅ Cerrar primero para calcular totales reales
-      const res = await fetch(`${BASE_URL}/arqueo/cerrar`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token")}`
-        },
-        body: JSON.stringify({ usuario_id: user?.id })
-      });
-      if (res.ok) {
-        const data = await res.json(); // ya tiene ingresos y saldo_final calculados
-        setResumenArqueo(data);
-        setShowModalCerrarArqueo(true);
-        setLoadingArqueo(false);
-        return;
+      return {
+        ok: true,
+        user: data.usuario
       }
-    } catch {}
-    setLoadingArqueo(false);
+    } catch {
+      return {
+        ok: false,
+        message: "Error de conexión"
+      }
+    }
   }
-  limpiarSesion();
-};
 
-// ✅ Ya no cierra — solo muestra confirmación y limpia
-const confirmarCierreArqueo = () => {
-  setShowModalCerrarArqueo(false);
-  setResumenArqueo(null);
-  limpiarSesion();
-};
+  // Mostrar modal para abrir caja
+  const abrirCaja = () => {
+    if (arqueoActivo) return
 
-const limpiarSesion = () => {
-  setUser(null);
-  setArqueoActivo(null);
-  localStorage.removeItem("user");
-  localStorage.removeItem("token");
-  localStorage.removeItem("lastActivity");
-  localStorage.removeItem("arqueoActivo");
-};
+    setSaldoInicial("")
+    setErrorArqueo("")
+    setShowModalAbrirArqueo(true)
+  }
+
+  const cancelarApertura = () => {
+    if (loadingArqueo) return
+
+    setShowModalAbrirArqueo(false)
+    setSaldoInicial("")
+    setErrorArqueo("")
+  }
+
+  // Confirmar apertura
+  const confirmarAbrirCaja = async () => {
+    if (!user || arqueoActivo) return
+
+    const saldo =
+      saldoInicial === ""
+        ? undefined
+        : Number(saldoInicial)
+
+    if (
+      saldo !== undefined &&
+      (!Number.isFinite(saldo) || saldo < 0)
+    ) {
+      setErrorArqueo(
+        "El saldo inicial no es válido"
+      )
+      return
+    }
+
+    try {
+      setLoadingArqueo(true)
+      setErrorArqueo("")
+
+      const res = await fetch(
+        `${BASE_URL}/arqueo/abrir`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...authHeaders()
+          },
+          body: JSON.stringify({
+            usuario_id: user.id,
+            saldo_anterior: saldo
+          })
+        }
+      )
+
+      const data = await res.json().catch(() => ({}))
+
+      if (!res.ok) {
+        throw new Error(
+          data.message ||
+            "No se pudo abrir la caja"
+        )
+      }
+
+      setArqueoActivo(data)
+
+      sessionStorage.setItem(
+        "arqueoActivo",
+        JSON.stringify(data)
+      )
+
+      setShowModalAbrirArqueo(false)
+      setSaldoInicial("")
+      setErrorArqueo("")
+    } catch (error) {
+      setErrorArqueo(error.message)
+    } finally {
+      setLoadingArqueo(false)
+    }
+  }
+
+  // Mostrar resumen antes del cierre
+  const cerrarCaja = async () => {
+    if (!arqueoActivo) return
+
+    setShowConfirmarCierre(true)
+    setResumenPrevio(null)
+    setErrorArqueo("")
+    setLoadingArqueo(true)
+
+    try {
+      const res = await fetch(
+        `${BASE_URL}/arqueo/resumen-activo`,
+        {
+          headers: authHeaders()
+        }
+      )
+
+      const data = await res.json().catch(() => ({}))
+
+      if (!res.ok) {
+        throw new Error(
+          data.message ||
+            "No se pudo calcular el resumen"
+        )
+      }
+
+      setResumenPrevio(data)
+    } catch (error) {
+      setErrorArqueo(error.message)
+    } finally {
+      setLoadingArqueo(false)
+    }
+  }
+
+  const cancelarCierre = () => {
+    if (loadingArqueo) return
+
+    setShowConfirmarCierre(false)
+    setResumenPrevio(null)
+    setErrorArqueo("")
+  }
+
+  // Cerrar realmente la caja
+  const confirmarCerrarCaja = async () => {
+    if (!arqueoActivo || !resumenPrevio) return
+
+    try {
+      setLoadingArqueo(true)
+      setErrorArqueo("")
+
+      const res = await fetch(
+        `${BASE_URL}/arqueo/cerrar`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...authHeaders()
+          },
+          body: JSON.stringify({
+            usuario_id: user?.id
+          })
+        }
+      )
+
+      const data = await res.json().catch(() => ({}))
+
+      if (!res.ok) {
+        throw new Error(
+          data.message ||
+            "No se pudo cerrar la caja"
+        )
+      }
+
+      setArqueoActivo(null)
+      sessionStorage.removeItem("arqueoActivo")
+
+      setShowConfirmarCierre(false)
+      setResumenPrevio(null)
+      setErrorArqueo("")
+    } catch (error) {
+      setErrorArqueo(error.message)
+    } finally {
+      setLoadingArqueo(false)
+    }
+  }
+
+  // Logout
+  const logout = () => {
+    setShowModalLogout(true)
+  }
+
+  const confirmarLogout = () => {
+    setShowModalLogout(false)
+    limpiarSesion()
+  }
+
+  const limpiarSesion = () => {
+    setUser(null)
+    setArqueoActivo(null)
+    setResumenPrevio(null)
+    sessionStorage.clear()
+  }
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, arqueoActivo }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        login,
+        logout,
+        abrirCaja,
+        cerrarCaja,
+        arqueoActivo,
+        verificarArqueoActivo
+      }}
+    >
       {children}
 
-      {/* ── Modal abrir arqueo ──────────────────────────────────────────── */}
+      {/* Abrir caja */}
       {showModalAbrirArqueo && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
-            <div className="text-center mb-5">
-              <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
-                <span className="text-2xl">🏪</span>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
+
+            <div className="mb-5 text-center">
+              <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-2xl">
+                🏪
               </div>
-              <h2 className="text-base font-semibold text-gray-900">Abrir caja</h2>
-              <p className="text-xs text-gray-400 mt-1">
-                Ingresá el monto inicial en caja para comenzar el turno
+
+              <h2 className="font-semibold text-gray-900">
+                Abrir caja
+              </h2>
+
+              <p className="mt-1 text-xs text-gray-400">
+                Ingresá el saldo inicial para comenzar un nuevo turno
               </p>
             </div>
 
-            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1.5">
+            {errorArqueo && (
+              <div className="mb-4 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-600">
+                {errorArqueo}
+              </div>
+            )}
+
+            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
               Saldo inicial
             </label>
-            <div className="relative mb-5">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+
+            <div className="relative mb-2">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">
+                $
+              </span>
+
               <input
                 type="number"
+                min="0"
+                step="0.01"
                 autoFocus
                 placeholder="0"
                 value={saldoInicial}
-                onChange={e => setSaldoInicial(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && abrirArqueo()}
-                className="w-full bg-gray-50 border border-gray-200 rounded-lg pl-7 pr-3 py-2.5 text-sm text-gray-900 outline-none focus:border-blue-400 focus:bg-white transition-colors"
+                onChange={(event) => {
+                  setSaldoInicial(event.target.value)
+                  setErrorArqueo("")
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    confirmarAbrirCaja()
+                  }
+                }}
+                className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 pl-7 pr-3 text-sm outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
               />
             </div>
 
-            <p className="text-xs text-gray-400 text-center mb-4">
-              Si dejás vacío se usará el saldo final del último turno
+            <p className="mb-5 text-center text-xs text-gray-400">
+              Si lo dejás vacío se utilizará el saldo final del último turno
             </p>
 
-            <button
-              onClick={abrirArqueo}
-              disabled={loadingArqueo}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white py-2.5 rounded-xl text-sm font-medium transition-colors"
-            >
-              {loadingArqueo ? "Abriendo..." : "Abrir caja"}
-            </button>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={cancelarApertura}
+                disabled={loadingArqueo}
+                className="w-1/2 rounded-xl bg-gray-100 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-200 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="button"
+                onClick={confirmarAbrirCaja}
+                disabled={loadingArqueo}
+                className="w-1/2 rounded-xl bg-blue-600 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                {loadingArqueo
+                  ? "Abriendo..."
+                  : "Confirmar apertura"}
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      {/* ── Modal cerrar arqueo ─────────────────────────────────────────── */}
-      {showModalCerrarArqueo && resumenArqueo && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
-            <div className="text-center mb-5">
-              <div className="w-14 h-14 bg-yellow-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
-                <span className="text-2xl">🔒</span>
+      {/* Resumen y confirmación de cierre */}
+      {showConfirmarCierre && arqueoActivo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
+
+            <div className="mb-5 text-center">
+              <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 text-2xl">
+                🔒
               </div>
-              <h2 className="text-base font-semibold text-gray-900">Cerrar caja</h2>
-              <p className="text-xs text-gray-400 mt-1">Resumen del turno</p>
+
+              <h2 className="font-semibold text-gray-900">
+                Confirmar cierre de caja
+              </h2>
+
+              <p className="mt-1 text-xs text-gray-400">
+                Resumen del arqueo #{arqueoActivo.id}
+              </p>
             </div>
 
-            {/* Resumen */}
-            <div className="space-y-2 mb-5">
-              <div className="flex justify-between items-center bg-gray-50 px-4 py-2.5 rounded-lg">
-                <span className="text-sm text-gray-500">Saldo inicial</span>
-                <span className="text-sm font-semibold text-gray-900">
-                  ${Number(resumenArqueo.saldo_anterior || 0).toLocaleString("es-AR")}
-                </span>
+            {loadingArqueo && !resumenPrevio && (
+              <div className="py-10 text-center">
+                <div className="mx-auto mb-3 h-7 w-7 animate-spin rounded-full border-2 border-gray-200 border-t-amber-500" />
+
+                <p className="text-sm text-gray-400">
+                  Calculando resumen...
+                </p>
               </div>
-              <div className="flex justify-between items-center bg-green-50 px-4 py-2.5 rounded-lg">
-                <span className="text-sm text-green-600">Ingresos</span>
-                <span className="text-sm font-semibold text-green-600">
-                  +${Number(resumenArqueo.ingresos || 0).toLocaleString("es-AR")}
-                </span>
+            )}
+
+            {errorArqueo && (
+              <div className="mb-4 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-600">
+                {errorArqueo}
               </div>
-              <div className="flex justify-between items-center bg-red-50 px-4 py-2.5 rounded-lg">
-                <span className="text-sm text-red-500">Egresos</span>
-                <span className="text-sm font-semibold text-red-500">
-                  -${Number(resumenArqueo.egresos || 0).toLocaleString("es-AR")}
-                </span>
+            )}
+
+            {resumenPrevio && (
+              <>
+                <div className="mb-5 space-y-2">
+                  <ResumenFila
+                    label="Saldo inicial"
+                    value={
+                      resumenPrevio.saldo_anterior
+                    }
+                    className="bg-gray-50 text-gray-700"
+                  />
+
+                  <ResumenFila
+                    label="Ingresos"
+                    value={resumenPrevio.ingresos}
+                    prefix="+"
+                    className="bg-green-50 text-green-600"
+                  />
+
+                  <ResumenFila
+                    label="Egresos"
+                    value={resumenPrevio.egresos}
+                    prefix="-"
+                    className="bg-red-50 text-red-500"
+                  />
+
+                  <ResumenFila
+                    label="Saldo final estimado"
+                    value={
+                      resumenPrevio.saldo_final
+                    }
+                    className="border border-blue-100 bg-blue-50 font-bold text-blue-700"
+                  />
+                </div>
+
+                <div className="mb-5 rounded-xl border border-amber-100 bg-amber-50 px-4 py-3">
+                  <p className="text-sm font-medium text-amber-800">
+                    ¿Confirmás el cierre de este turno?
+                  </p>
+
+                  <p className="mt-1 text-xs text-amber-600">
+                    Una vez cerrado, el arqueo no podrá modificarse.
+                  </p>
+                </div>
+              </>
+            )}
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={cancelarCierre}
+                disabled={loadingArqueo}
+                className="w-1/2 rounded-xl bg-gray-100 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-200 disabled:opacity-50"
+              >
+                No, volver
+              </button>
+
+              <button
+                type="button"
+                onClick={confirmarCerrarCaja}
+                disabled={
+                  loadingArqueo ||
+                  !resumenPrevio ||
+                  Boolean(errorArqueo)
+                }
+                className="w-1/2 rounded-xl bg-amber-500 py-2.5 text-sm font-medium text-white hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {loadingArqueo && resumenPrevio
+                  ? "Cerrando..."
+                  : "Sí, cerrar caja"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Logout */}
+      {showModalLogout && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="mb-5 text-center">
+              <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-2xl">
+                👋
               </div>
-              <div className="flex justify-between items-center bg-blue-50 px-4 py-2.5 rounded-lg border border-blue-100">
-                <span className="text-sm font-semibold text-blue-700">Saldo final</span>
-                <span className="text-base font-bold text-blue-700">
-                  ${Number(resumenArqueo.saldo_final || 0).toLocaleString("es-AR")}
-                </span>
-              </div>
+
+              <h2 className="font-semibold text-gray-900">
+                ¿Cerrar sesión?
+              </h2>
+
+              <p className="mt-1 text-xs text-gray-400">
+                {arqueoActivo
+                  ? "La caja continuará abierta aunque cierres la sesión."
+                  : "¿Estás seguro de que querés salir?"}
+              </p>
             </div>
 
             <div className="flex gap-2">
               <button
-                onClick={() => setShowModalCerrarArqueo(false)}
-                className="w-1/2 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-xl text-sm font-medium transition-colors"
+                type="button"
+                onClick={() =>
+                  setShowModalLogout(false)
+                }
+                className="w-1/2 rounded-xl bg-gray-100 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-200"
               >
                 Cancelar
               </button>
+
               <button
-                onClick={confirmarCierreArqueo}
-                disabled={loadingArqueo}
-                className="w-1/2 bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white py-2.5 rounded-xl text-sm font-medium transition-colors"
+                type="button"
+                onClick={confirmarLogout}
+                className="w-1/2 rounded-xl bg-red-500 py-2.5 text-sm font-medium text-white hover:bg-red-600"
               >
-                {loadingArqueo ? "Cerrando..." : "Cerrar caja"}
+                Cerrar sesión
               </button>
             </div>
           </div>
         </div>
       )}
     </AuthContext.Provider>
-  );
-};
+  )
+}
 
-export const useAuth = () => useContext(AuthContext);
+function ResumenFila({
+  label,
+  value,
+  prefix = "",
+  className = ""
+}) {
+  return (
+    <div
+      className={`flex items-center justify-between rounded-lg px-4 py-2.5 ${className}`}
+    >
+      <span className="text-sm">{label}</span>
+
+      <span className="text-sm font-semibold">
+        {prefix}$
+        {Number(value || 0).toLocaleString("es-AR")}
+      </span>
+    </div>
+  )
+}
+
+export const useAuth = () =>
+  useContext(AuthContext)

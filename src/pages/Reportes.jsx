@@ -37,7 +37,7 @@ export default function Reportes() {
   };
 
   return (
-    <div className="w-full min-h-screen bg-gray-50 px-6 py-7">
+    <div className="w-full min-h-screen bg-gray-50 px-4 md:px-6 py-5 md:py-7">
 
       {/* Header */}
       <div className="flex justify-between items-start mb-6">
@@ -78,7 +78,7 @@ export default function Reportes() {
                 🎉 Todos los productos tienen stock suficiente
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto -mx-4 md:mx-0">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 border-b border-gray-100">
                     <tr>
@@ -100,14 +100,14 @@ export default function Reportes() {
                         </td>
                         <td className="px-5 py-3.5 text-center text-gray-500">{p.stock_minimo}</td>
                         <td className="px-5 py-3.5">
-                          <p className="font-medium text-gray-900">{p.proveedor.empresa}</p>
-                          <p className="text-xs text-gray-400">{p.proveedor.contacto}</p>
+                          <p className="font-medium text-gray-900">{p.proveedor || "Sin proveedor"}</p>
+                          <p className="text-xs text-gray-400">{p.telefono || "—"}</p>
                         </td>
                         <td className="px-5 py-3.5 text-center">
                           <button
-                            onClick={() => contactarProveedor(p.proveedor.telefono, p.nombre)}
+                            onClick={() => contactarProveedor(p.telefono, p.nombre)}
                             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                              p.proveedor.telefono
+                              p.telefono
                                 ? "bg-green-600 hover:bg-green-700 text-white"
                                 : "bg-gray-100 text-gray-400 cursor-not-allowed"
                             }`}
@@ -137,7 +137,7 @@ export default function Reportes() {
                 🎉 Ningún producto agotado
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto -mx-4 md:mx-0">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 border-b border-gray-100">
                     <tr>
@@ -157,9 +157,9 @@ export default function Reportes() {
                         </td>
                         <td className="px-5 py-3.5 text-center">
                           <button
-                            onClick={() => contactarProveedor(p.proveedor?.telefono, p.nombre)}
+                            onClick={() => contactarProveedor(p.telefono, p.nombre)}
                             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                              p.proveedor?.telefono
+                              p.telefono
                                 ? "bg-green-600 hover:bg-green-700 text-white"
                                 : "bg-gray-100 text-gray-400 cursor-not-allowed"
                             }`}

@@ -4,52 +4,57 @@ import { X } from "lucide-react";
 
 const BASE_URL = "http://localhost:3000/api";
 
+const shakeVariants = {
+  idle:  { x: 0 },
+  shake: { x: [0, -8, 8, -6, 6, -3, 3, 0], transition: { duration: 0.4 } },
+};
+
 export default function FormProducto({ producto, onGuardar, onClose }) {
   const [form, setForm] = useState({
-    nombre: "",
-    descripcion: "",
-    precio: "",
-    stock: "",
-    codigo_barras: "",
-    categoria_id: "",
-    proveedor_id: "",
-    tipo_venta: "unidad",
-    unidad_medida: "unidad",
+    nombre: "", descripcion: "", precio: "", stock: "",
+    codigo_barras: "", categoria_id: "", proveedor_id: "",
+    tipo_venta: "unidad", unidad_medida: "unidad",
   });
 
   const [categorias, setCategorias] = useState([]);
   const [proveedores, setProveedores] = useState([]);
-
   const [showCategoriaModal, setShowCategoriaModal] = useState(false);
   const [showProveedorModal, setShowProveedorModal] = useState(false);
   const [nuevaCategoria, setNuevaCategoria] = useState("");
   const [mensaje, setMensaje] = useState({ texto: "", tipo: "" });
   const [loading, setLoading] = useState(false);
 
-  const [provEmpresa, setProvEmpresa] = useState("");
-  const [provContacto, setProvContacto] = useState("");
-  const [provTelefono, setProvTelefono] = useState("");
-  const [provEmail, setProvEmail] = useState("");
+  const [provEmpresa, setProvEmpresa]     = useState("");
+  const [provContacto, setProvContacto]   = useState("");
+  const [provTelefono, setProvTelefono]   = useState("");
+  const [provEmail, setProvEmail]         = useState("");
   const [provDireccion, setProvDireccion] = useState("");
 
-  // ─── Carga inicial ───────────────────────────────────────────────────────
+  // ← Estados shake para cada modal interno
+  const [shakeCategoria, setShakeCategoria] = useState(false);
+  const [shakeProveedor, setShakeProveedor] = useState(false);
+
+  const triggerShake = (setter) => {
+    setter(true);
+    setTimeout(() => setter(false), 400);
+  };
+
   useEffect(() => {
     fetchCategorias();
     fetchProveedores();
   }, []);
 
-  // ─── Precargar datos al editar ───────────────────────────────────────────
   useEffect(() => {
     if (producto) {
       setForm({
-        nombre: producto.nombre || "",
-        descripcion: producto.descripcion || "",
-        precio: producto.precio || "",
-        stock: producto.stock || "",
+        nombre:        producto.nombre        || "",
+        descripcion:   producto.descripcion   || "",
+        precio:        producto.precio        || "",
+        stock:         producto.stock         || "",
         codigo_barras: producto.codigo_barras || "",
-        categoria_id: String(producto.categoria_id || ""),
-        proveedor_id: String(producto.proveedor_id || ""),
-        tipo_venta: producto.tipo_venta || "unidad",
+        categoria_id:  String(producto.categoria_id  || ""),
+        proveedor_id:  String(producto.proveedor_id  || ""),
+        tipo_venta:    producto.tipo_venta    || "unidad",
         unidad_medida: producto.unidad_medida || "unidad",
       });
     }
@@ -75,7 +80,6 @@ export default function FormProducto({ producto, onGuardar, onClose }) {
     }
   };
 
-  // ─── Helpers ─────────────────────────────────────────────────────────────
   const mostrarMensaje = (texto, tipo = "success") => {
     setMensaje({ texto, tipo });
     setTimeout(() => setMensaje({ texto: "", tipo: "" }), 3000);
@@ -84,7 +88,6 @@ export default function FormProducto({ producto, onGuardar, onClose }) {
   const handleChange = (e) =>
     setForm((s) => ({ ...s, [e.target.name]: e.target.value }));
 
-  // ─── Guardar producto ─────────────────────────────────────────────────────
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.nombre.trim() || !form.precio || !form.stock) {
@@ -93,15 +96,15 @@ export default function FormProducto({ producto, onGuardar, onClose }) {
     }
     const body = {
       ...form,
-      precio: Number(form.precio),
-      stock: Number(form.stock),
+      precio:       Number(form.precio),
+      stock:        Number(form.stock),
       categoria_id: Number(form.categoria_id),
       proveedor_id: Number(form.proveedor_id),
     };
     try {
       setLoading(true);
       const isEditing = Boolean(producto);
-      const url = isEditing ? `${BASE_URL}/productos/${producto.id}` : `${BASE_URL}/productos`;
+      const url    = isEditing ? `${BASE_URL}/productos/${producto.id}` : `${BASE_URL}/productos`;
       const method = isEditing ? "PUT" : "POST";
 
       const res = await fetch(url, {
@@ -139,7 +142,6 @@ export default function FormProducto({ producto, onGuardar, onClose }) {
     }
   };
 
-  // ─── Crear categoría ──────────────────────────────────────────────────────
   const agregarCategoria = async () => {
     if (!nuevaCategoria.trim()) return;
     try {
@@ -160,7 +162,6 @@ export default function FormProducto({ producto, onGuardar, onClose }) {
     }
   };
 
-  // ─── Crear proveedor ──────────────────────────────────────────────────────
   const agregarProveedor = async () => {
     if (!provEmpresa.trim() && !provContacto.trim()) {
       mostrarMensaje("Completá al menos empresa o contacto.", "error");
@@ -171,7 +172,7 @@ export default function FormProducto({ producto, onGuardar, onClose }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          nombre: provEmpresa.trim() || "(Sin nombre)",
+          nombre:   provEmpresa.trim()  || "(Sin nombre)",
           contacto: provContacto.trim(),
           telefono: provTelefono.trim(),
         }),
@@ -189,24 +190,35 @@ export default function FormProducto({ producto, onGuardar, onClose }) {
     }
   };
 
-  // ─── Render ───────────────────────────────────────────────────────────────
   return (
-    <div className="max-w-4xl mx-auto mt-8 px-4">
+    <div className="max-w-4xl mx-auto">
       <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
 
-        {/* Header */}
-        <div className="px-8 py-6 border-b border-gray-100">
-          <h2 className="text-lg font-semibold text-gray-900">{producto ? "Editar producto" : "Registrar nuevo producto"}</h2>
-          <p className="text-sm text-gray-400 mt-0.5">{producto ? "Modificá los datos del producto" : "Completá los datos para agregar un producto al inventario"}</p>
+        {/* Header con X ← */}
+        <div className="px-8 py-6 border-b border-gray-100 flex justify-between items-start">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">
+              {producto ? "Editar producto" : "Registrar nuevo producto"}
+            </h2>
+            <p className="text-sm text-gray-400 mt-0.5">
+              {producto ? "Modificá los datos del producto" : "Completá los datos para agregar un producto al inventario"}
+            </p>
+          </div>
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors flex-shrink-0"
+            >
+              <X size={15} />
+            </button>
+          )}
         </div>
 
         {/* Mensaje */}
         <AnimatePresence>
           {mensaje.texto && (
             <motion.div
-              initial={{ opacity: 0, y: -6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
+              initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
               className={`mx-8 mt-4 px-4 py-2.5 rounded-lg text-sm font-medium ${
                 mensaje.tipo === "error"
                   ? "bg-red-50 text-red-600 border border-red-100"
@@ -221,115 +233,74 @@ export default function FormProducto({ producto, onGuardar, onClose }) {
         {/* Formulario */}
         <form onSubmit={handleSubmit} className="px-8 py-6 grid grid-cols-2 gap-5">
 
-          {/* Nombre */}
           <Field label="Nombre" required>
-            <input
-              name="nombre" value={form.nombre} onChange={handleChange}
-              placeholder="Lapicera azul"
-              className={inputCls}
-              required
-            />
+            <input name="nombre" value={form.nombre} onChange={handleChange}
+              placeholder="Lapicera azul" className={inputCls} required />
           </Field>
 
-          {/* Código de barras */}
           <Field label="Código de barras">
-            <input
-              name="codigo_barras" value={form.codigo_barras} onChange={handleChange}
-              placeholder="123456789"
-              className={inputCls}
-            />
+            <input name="codigo_barras" value={form.codigo_barras} onChange={handleChange}
+              placeholder="123456789" className={inputCls} />
           </Field>
 
-          {/* Descripción */}
           <Field label="Descripción" className="col-span-2">
-            <textarea
-              name="descripcion" value={form.descripcion} onChange={handleChange}
-              rows={2}
-              placeholder="Detalles del producto..."
-              className={`${inputCls} resize-none`}
-            />
+            <textarea name="descripcion" value={form.descripcion} onChange={handleChange}
+              rows={2} placeholder="Detalles del producto..."
+              className={`${inputCls} resize-none`} />
           </Field>
 
-          {/* Precio */}
-          <Field label="Precio">
+          <Field label="Precio" required>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
-              <input
-                name="precio" value={form.precio} onChange={handleChange}
+              <input name="precio" value={form.precio} onChange={handleChange}
                 type="number" min="0" step="0.01" placeholder="0"
-                className={`${inputCls} pl-7`}
-                required
-              />
+                className={`${inputCls} pl-7`} required />
             </div>
           </Field>
 
-          {/* Stock */}
           <Field label={`Stock (${form.unidad_medida})`} required>
-            <input
-              name="stock" value={form.stock} onChange={handleChange}
+            <input name="stock" value={form.stock} onChange={handleChange}
               type="number" min="0" step="0.001" placeholder="0.000"
-              className={inputCls}
-              required
-            />
+              className={inputCls} required />
           </Field>
 
-          {/* Categoría */}
           <Field label="Categoría" required>
             <div className="flex gap-2">
-              <select
-                name="categoria_id" value={form.categoria_id} onChange={handleChange}
-                className={`${inputCls} flex-1`}
-                required
-              >
+              <select name="categoria_id" value={form.categoria_id} onChange={handleChange}
+                className={`${inputCls} flex-1`} required>
                 <option value="">Seleccionar...</option>
                 {categorias.map((c) => (
                   <option key={c.id} value={String(c.id)}>{c.nombre}</option>
                 ))}
               </select>
-              <button
-                type="button"
-                onClick={() => setShowCategoriaModal(true)}
+              <button type="button" onClick={() => setShowCategoriaModal(true)}
                 className="w-10 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-lg transition-colors flex items-center justify-center"
-                title="Nueva categoría"
-              >
+                title="Nueva categoría">
                 +
               </button>
             </div>
           </Field>
 
-          {/* Proveedor */}
           <Field label="Proveedor" required>
             <div className="flex gap-2">
-              <select
-                name="proveedor_id" value={form.proveedor_id} onChange={handleChange}
-                className={`${inputCls} flex-1`}
-                required
-              >
+              <select name="proveedor_id" value={form.proveedor_id} onChange={handleChange}
+                className={`${inputCls} flex-1`} required>
                 <option value="">Seleccionar proveedor...</option>
                 {proveedores.map((p) => (
-                  <option key={p.id} value={String(p.id)}>
-                    {p.nombre} — {p.contacto}
-                  </option>
+                  <option key={p.id} value={String(p.id)}>{p.nombre} — {p.contacto}</option>
                 ))}
               </select>
-              <button
-                type="button"
-                onClick={() => setShowProveedorModal(true)}
+              <button type="button" onClick={() => setShowProveedorModal(true)}
                 className="w-10 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-lg transition-colors flex items-center justify-center"
-                title="Nuevo proveedor"
-              >
+                title="Nuevo proveedor">
                 +
               </button>
             </div>
           </Field>
 
-          {/* Tipo de venta */}
           <Field label="Tipo de venta" required>
-            <select
-              name="tipo_venta" value={form.tipo_venta} onChange={handleChange}
-              className={inputCls}
-              required
-            >
+            <select name="tipo_venta" value={form.tipo_venta} onChange={handleChange}
+              className={inputCls} required>
               <option value="unidad">Unidad</option>
               <option value="peso">Peso</option>
               <option value="metro">Metro</option>
@@ -337,13 +308,9 @@ export default function FormProducto({ producto, onGuardar, onClose }) {
             </select>
           </Field>
 
-          {/* Unidad de medida */}
           <Field label="Unidad de medida" required>
-            <select
-              name="unidad_medida" value={form.unidad_medida} onChange={handleChange}
-              className={inputCls}
-              required
-            >
+            <select name="unidad_medida" value={form.unidad_medida} onChange={handleChange}
+              className={inputCls} required>
               <option value="unidad">Unidad</option>
               <option value="kg">Kilogramo (kg)</option>
               <option value="gr">Gramo (gr)</option>
@@ -352,78 +319,118 @@ export default function FormProducto({ producto, onGuardar, onClose }) {
             </select>
           </Field>
 
-          {/* Submit */}
-          <div className="col-span-2 flex justify-end pt-2 border-t border-gray-100 mt-2">
-            <button
-              type="submit"
-              disabled={loading}
-              className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 transition-colors text-white px-6 py-2.5 rounded-lg text-sm font-medium"
-            >
+          {/* Botones ← Cancelar + Guardar */}
+          <div className="col-span-2 flex justify-end gap-2 pt-2 border-t border-gray-100 mt-2">
+            {onClose && (
+              <button type="button" onClick={onClose}
+                className="px-5 py-2.5 rounded-lg text-sm font-medium text-gray-600 bg-white border border-gray-200 hover:bg-gray-50 transition-colors">
+                Cancelar
+              </button>
+            )}
+            <button type="submit" disabled={loading}
+              className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 transition-colors text-white px-6 py-2.5 rounded-lg text-sm font-medium">
               {loading ? "Guardando..." : producto ? "Guardar cambios" : "Guardar producto"}
             </button>
           </div>
         </form>
       </div>
 
-      {/* Modal Categoría */}
+      {/* Modal Categoría — con shake ← */}
       <AnimatePresence>
         {showCategoriaModal && (
-          <Modal onClose={() => setShowCategoriaModal(false)} titulo="Nueva categoría">
-            <div>
-              <label className={labelCls}>Nombre de la categoría</label>
-              <input
-                value={nuevaCategoria}
-                onChange={(e) => setNuevaCategoria(e.target.value)}
-                placeholder="Ej: Papelería"
-                className={inputCls}
-                autoFocus
-                onKeyDown={(e) => e.key === "Enter" && agregarCategoria()}
-              />
-            </div>
-            <div className="flex justify-end gap-2 mt-5">
-              <BtnSecundario onClick={() => setShowCategoriaModal(false)}>Cancelar</BtnSecundario>
-              <BtnPrimario onClick={agregarCategoria}>Guardar</BtnPrimario>
-            </div>
-          </Modal>
+          <motion.div
+            className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={() => triggerShake(setShakeCategoria)}
+          >
+            <motion.div
+              className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden"
+              variants={shakeVariants}
+              animate={shakeCategoria ? "shake" : "idle"}
+              initial={{ scale: 0.95, y: 10 }}
+              exit={{ scale: 0.95 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex justify-between items-center px-6 py-5 border-b border-gray-100">
+                <h3 className="text-base font-semibold text-gray-900">Nueva categoría</h3>
+                <button onClick={() => setShowCategoriaModal(false)}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors">
+                  <X size={15} />
+                </button>
+              </div>
+              <div className="px-6 py-5">
+                <label className={labelCls}>Nombre de la categoría</label>
+                <input value={nuevaCategoria} onChange={(e) => setNuevaCategoria(e.target.value)}
+                  placeholder="Ej: Papelería" className={inputCls} autoFocus
+                  onKeyDown={(e) => e.key === "Enter" && agregarCategoria()} />
+                <div className="flex justify-end gap-2 mt-5">
+                  <BtnSecundario onClick={() => setShowCategoriaModal(false)}>Cancelar</BtnSecundario>
+                  <BtnPrimario onClick={agregarCategoria}>Guardar</BtnPrimario>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Modal Proveedor */}
+      {/* Modal Proveedor — con shake ← */}
       <AnimatePresence>
         {showProveedorModal && (
-          <Modal onClose={() => setShowProveedorModal(false)} titulo="Nuevo proveedor">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className={labelCls}>Nombre</label>
-                <input value={provEmpresa} onChange={(e) => setProvEmpresa(e.target.value)}
-                  placeholder="Distribuidora Sur" className={inputCls} autoFocus />
+          <motion.div
+            className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={() => triggerShake(setShakeProveedor)}
+          >
+            <motion.div
+              className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden"
+              variants={shakeVariants}
+              animate={shakeProveedor ? "shake" : "idle"}
+              initial={{ scale: 0.95, y: 10 }}
+              exit={{ scale: 0.95 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex justify-between items-center px-6 py-5 border-b border-gray-100">
+                <h3 className="text-base font-semibold text-gray-900">Nuevo proveedor</h3>
+                <button onClick={() => setShowProveedorModal(false)}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors">
+                  <X size={15} />
+                </button>
               </div>
-              <div>
-                <label className={labelCls}>Persona de contacto</label>
-                <input value={provContacto} onChange={(e) => setProvContacto(e.target.value)}
-                  placeholder="Juan Pérez" className={inputCls} />
+              <div className="px-6 py-5">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={labelCls}>Nombre</label>
+                    <input value={provEmpresa} onChange={(e) => setProvEmpresa(e.target.value)}
+                      placeholder="Distribuidora Sur" className={inputCls} autoFocus />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Persona de contacto</label>
+                    <input value={provContacto} onChange={(e) => setProvContacto(e.target.value)}
+                      placeholder="Juan Pérez" className={inputCls} />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Teléfono</label>
+                    <input value={provTelefono} onChange={(e) => setProvTelefono(e.target.value)}
+                      placeholder="341-xxxxxxx" className={inputCls} />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Email</label>
+                    <input value={provEmail} onChange={(e) => setProvEmail(e.target.value)}
+                      type="email" placeholder="proveedor@ejemplo.com" className={inputCls} />
+                  </div>
+                  <div className="col-span-2">
+                    <label className={labelCls}>Dirección</label>
+                    <input value={provDireccion} onChange={(e) => setProvDireccion(e.target.value)}
+                      placeholder="Calle 123, Ciudad" className={inputCls} />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2 mt-5">
+                  <BtnSecundario onClick={() => setShowProveedorModal(false)}>Cancelar</BtnSecundario>
+                  <BtnPrimario onClick={agregarProveedor}>Guardar proveedor</BtnPrimario>
+                </div>
               </div>
-              <div>
-                <label className={labelCls}>Teléfono</label>
-                <input value={provTelefono} onChange={(e) => setProvTelefono(e.target.value)}
-                  placeholder="341-xxxxxxx" className={inputCls} />
-              </div>
-              <div>
-                <label className={labelCls}>Email</label>
-                <input value={provEmail} onChange={(e) => setProvEmail(e.target.value)}
-                  type="email" placeholder="proveedor@ejemplo.com" className={inputCls} />
-              </div>
-              <div className="col-span-2">
-                <label className={labelCls}>Dirección</label>
-                <input value={provDireccion} onChange={(e) => setProvDireccion(e.target.value)}
-                  placeholder="Calle 123, Ciudad" className={inputCls} />
-              </div>
-            </div>
-            <div className="flex justify-end gap-2 mt-5">
-              <BtnSecundario onClick={() => setShowProveedorModal(false)}>Cancelar</BtnSecundario>
-              <BtnPrimario onClick={agregarProveedor}>Guardar proveedor</BtnPrimario>
-            </div>
-          </Modal>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>
@@ -449,39 +456,10 @@ function Field({ label, children, className = "", required }) {
   );
 }
 
-function Modal({ titulo, onClose, children }) {
-  return (
-    <motion.div
-      className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4"
-      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      onClick={onClose}
-    >
-      <motion.div
-        className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden"
-        initial={{ scale: 0.95, y: 10 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95 }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex justify-between items-center px-6 py-5 border-b border-gray-100">
-          <h3 className="text-base font-semibold text-gray-900">{titulo}</h3>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors"
-          >
-            <X size={15} />
-          </button>
-        </div>
-        <div className="px-6 py-5">{children}</div>
-      </motion.div>
-    </motion.div>
-  );
-}
-
 function BtnPrimario({ children, onClick }) {
   return (
-    <button
-      type="button" onClick={onClick}
-      className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
-    >
+    <button type="button" onClick={onClick}
+      className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors">
       {children}
     </button>
   );
@@ -489,10 +467,8 @@ function BtnPrimario({ children, onClick }) {
 
 function BtnSecundario({ children, onClick }) {
   return (
-    <button
-      type="button" onClick={onClick}
-      className="px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-    >
+    <button type="button" onClick={onClick}
+      className="px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
       {children}
     </button>
   );

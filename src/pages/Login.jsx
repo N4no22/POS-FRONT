@@ -1,282 +1,724 @@
-import { useNavigate } from "react-router-dom";
-import { useState } from "react";
-import { useAuth } from "../context/AuthContext";
-import { Eye, EyeOff } from "lucide-react";
+import {
+  useEffect,
+  useState
+} from "react"
+import {
+  ArrowLeft,
+  CheckCircle,
+  Eye,
+  EyeOff,
+  KeyRound,
+  Store
+} from "lucide-react"
+import { useNavigate } from "react-router-dom"
 
-const BASE_URL = "http://localhost:3000/api";
+import { useAuth } from "../context/AuthContext"
+
+const BASE_URL = "http://localhost:3000/api"
+
+const inputClass = `
+  w-full rounded-xl border border-slate-200
+  bg-slate-50 px-4 py-3
+  text-sm text-slate-900
+  outline-none transition
+  placeholder:text-slate-400
+  focus:border-blue-400 focus:bg-white
+  focus:ring-4 focus:ring-blue-100
+`
+
+const buttonClass = `
+  w-full rounded-xl bg-blue-600 py-3
+  text-sm font-semibold text-white
+  transition hover:bg-blue-700
+  disabled:cursor-not-allowed
+  disabled:opacity-50
+`
 
 export default function Login() {
-  const navigate = useNavigate();
-  const { login } = useAuth();
+  const navigate = useNavigate()
+  const { login, user } = useAuth()
 
-  const [form, setForm] = useState({ email: "", password: "" });
-  const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [form, setForm] = useState({
+    email: "",
+    password: ""
+  })
 
-  // ─── Recuperación ────────────────────────────────────────────────────────
-  const [paso, setPaso] = useState(null); // null | "email" | "codigo" | "password"
-  const [emailRecuperar, setEmailRecuperar] = useState("");
-  const [codigo, setCodigo] = useState("");
-  const [nuevaPassword, setNuevaPassword] = useState("");
-  const [showNuevaPassword, setShowNuevaPassword] = useState(false);
-  const [loadingRecuperar, setLoadingRecuperar] = useState(false);
-  const [mensajeRecuperar, setMensajeRecuperar] = useState("");
+  const [showPassword, setShowPassword] =
+    useState(false)
 
-  // ─── Login ───────────────────────────────────────────────────────────────
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
-    const res = await login(form.email, form.password);
-    setLoading(false);
-    if (!res.ok) { setError(res.message || "Credenciales incorrectas"); return; }
-    if (res.user.rol === "admin") navigate("/dashboard");
-    else navigate("/ventas");
-  };
+  const [error, setError] = useState("")
+  const [mensajeExito, setMensajeExito] =
+    useState("")
+  const [loading, setLoading] = useState(false)
 
-  // ─── Paso 1: solicitar código ─────────────────────────────────────────────
+  // Recuperación
+  const [paso, setPaso] = useState(null)
+  const [emailRecuperar, setEmailRecuperar] =
+    useState("")
+  const [codigo, setCodigo] = useState("")
+  const [nuevaPassword, setNuevaPassword] =
+    useState("")
+  const [
+    showNuevaPassword,
+    setShowNuevaPassword
+  ] = useState(false)
+  const [
+    loadingRecuperar,
+    setLoadingRecuperar
+  ] = useState(false)
+  const [
+    mensajeRecuperar,
+    setMensajeRecuperar
+  ] = useState("")
+  const [mensajeTipo, setMensajeTipo] =
+    useState("error")
+
+  // Si ya tiene sesión, no mostrar login
+  useEffect(() => {
+    if (!user) return
+
+    const destino =
+      user.rol === "admin"
+        ? "/dashboard"
+        : "/ventas"
+
+    navigate(destino, { replace: true })
+  }, [user, navigate])
+
+  const handleSubmit = async (event) => {
+    event.preventDefault()
+
+    const email = form.email.trim()
+    const password = form.password
+
+    if (!email || !password) {
+      setError(
+        "Ingresá tu email y contraseña"
+      )
+      return
+    }
+
+    try {
+      setLoading(true)
+      setError("")
+      setMensajeExito("")
+
+      const resultado = await login(
+        email,
+        password
+      )
+
+      if (!resultado.ok) {
+        throw new Error(
+          resultado.message ||
+            "Credenciales incorrectas"
+        )
+      }
+
+      const destino =
+        resultado.user.rol === "admin"
+          ? "/dashboard"
+          : "/ventas"
+
+      navigate(destino, {
+        replace: true
+      })
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const mostrarMensaje = (
+    texto,
+    tipo = "error"
+  ) => {
+    setMensajeRecuperar(texto)
+    setMensajeTipo(tipo)
+  }
+
   const solicitarCodigo = async () => {
-    if (!emailRecuperar.trim()) { setMensajeRecuperar("Ingresá tu email"); return; }
-    try {
-      setLoadingRecuperar(true);
-      setMensajeRecuperar("");
-      const res = await fetch(`${BASE_URL}/recuperar/solicitar`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: emailRecuperar })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message);
-      setPaso("codigo");
-      setMensajeRecuperar("Código enviado — revisá tu email");
-    } catch (err) {
-      setMensajeRecuperar(err.message);
-    } finally {
-      setLoadingRecuperar(false);
-    }
-  };
+    const email = emailRecuperar.trim()
 
-  // ─── Paso 2: verificar código ─────────────────────────────────────────────
+    if (!email) {
+      mostrarMensaje("Ingresá tu email")
+      return
+    }
+
+    try {
+      setLoadingRecuperar(true)
+      setMensajeRecuperar("")
+
+      const res = await fetch(
+        `${BASE_URL}/recuperar/solicitar`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ email })
+        }
+      )
+
+      const data = await res.json().catch(() => ({}))
+
+      if (!res.ok) {
+        throw new Error(
+          data.message ||
+            "No se pudo enviar el código"
+        )
+      }
+
+      setEmailRecuperar(email)
+      setPaso("codigo")
+
+      mostrarMensaje(
+        "Código enviado. Revisá tu email.",
+        "success"
+      )
+    } catch (err) {
+      mostrarMensaje(err.message)
+    } finally {
+      setLoadingRecuperar(false)
+    }
+  }
+
   const verificarCodigo = async () => {
-    if (codigo.length !== 6) { setMensajeRecuperar("El código tiene 6 dígitos"); return; }
-    try {
-      setLoadingRecuperar(true);
-      setMensajeRecuperar("");
-      const res = await fetch(`${BASE_URL}/recuperar/verificar`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: emailRecuperar, codigo })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message);
-      setPaso("password");
-      setMensajeRecuperar("");
-    } catch (err) {
-      setMensajeRecuperar(err.message);
-    } finally {
-      setLoadingRecuperar(false);
+    if (codigo.length !== 6) {
+      mostrarMensaje(
+        "El código debe tener 6 dígitos"
+      )
+      return
     }
-  };
 
-  // ─── Paso 3: cambiar contraseña ───────────────────────────────────────────
-  const cambiarPassword = async () => {
-    if (nuevaPassword.length < 4) { setMensajeRecuperar("Mínimo 4 caracteres"); return; }
     try {
-      setLoadingRecuperar(true);
-      setMensajeRecuperar("");
-      const res = await fetch(`${BASE_URL}/recuperar/cambiar`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: emailRecuperar, codigo, nuevaPassword })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message);
-      setPaso(null);
-      setEmailRecuperar("");
-      setCodigo("");
-      setNuevaPassword("");
-      setError("");
-      setMensajeRecuperar("");
-      setForm({ email: emailRecuperar, password: "" });
+      setLoadingRecuperar(true)
+      setMensajeRecuperar("")
+
+      const res = await fetch(
+        `${BASE_URL}/recuperar/verificar`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            email: emailRecuperar,
+            codigo
+          })
+        }
+      )
+
+      const data = await res.json().catch(() => ({}))
+
+      if (!res.ok) {
+        throw new Error(
+          data.message ||
+            "El código no es válido"
+        )
+      }
+
+      setPaso("password")
+      setMensajeRecuperar("")
     } catch (err) {
-      setMensajeRecuperar(err.message);
+      mostrarMensaje(err.message)
     } finally {
-      setLoadingRecuperar(false);
+      setLoadingRecuperar(false)
     }
-  };
+  }
+
+  const cambiarPassword = async () => {
+    if (nuevaPassword.length < 6) {
+      mostrarMensaje(
+        "La contraseña debe tener al menos 6 caracteres"
+      )
+      return
+    }
+
+    try {
+      setLoadingRecuperar(true)
+      setMensajeRecuperar("")
+
+      const res = await fetch(
+        `${BASE_URL}/recuperar/cambiar`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            email: emailRecuperar,
+            codigo,
+            nuevaPassword
+          })
+        }
+      )
+
+      const data = await res.json().catch(() => ({}))
+
+      if (!res.ok) {
+        throw new Error(
+          data.message ||
+            "No se pudo cambiar la contraseña"
+        )
+      }
+
+      const email = emailRecuperar
+
+      resetRecuperar()
+
+      setForm({
+        email,
+        password: ""
+      })
+
+      setMensajeExito(
+        "Contraseña actualizada. Ya podés iniciar sesión."
+      )
+    } catch (err) {
+      mostrarMensaje(err.message)
+    } finally {
+      setLoadingRecuperar(false)
+    }
+  }
 
   const resetRecuperar = () => {
-    setPaso(null);
-    setEmailRecuperar("");
-    setCodigo("");
-    setNuevaPassword("");
-    setMensajeRecuperar("");
-  };
+    setPaso(null)
+    setEmailRecuperar("")
+    setCodigo("")
+    setNuevaPassword("")
+    setShowNuevaPassword(false)
+    setMensajeRecuperar("")
+    setMensajeTipo("error")
+  }
+
+  const volver = () => {
+    setMensajeRecuperar("")
+
+    if (paso === "codigo") {
+      setPaso("email")
+      setCodigo("")
+      return
+    }
+
+    if (paso === "password") {
+      setPaso("codigo")
+      setNuevaPassword("")
+      return
+    }
+
+    resetRecuperar()
+  }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-900 p-4">
-      <div className="bg-gray-800 p-8 rounded-2xl w-full max-w-sm shadow-xl">
+    <div className="flex min-h-screen items-center justify-center bg-slate-950 p-4">
+      <div className="w-full max-w-sm">
 
-        {/* ── Login normal ──────────────────────────────────────────────── */}
-        {!paso && (
-          <>
-            <div className="text-center mb-6">
-              <h1 className="text-white text-xl font-semibold">Iniciar sesión</h1>
-              <p className="text-gray-400 text-sm mt-1">Sistema de punto de venta</p>
-            </div>
+        {/* Marca */}
+        <div className="mb-6 text-center">
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600 text-white shadow-lg shadow-blue-950">
+            <Store size={21} />
+          </div>
 
-            <form onSubmit={handleSubmit} className="space-y-3">
-              <input
-                type="email" placeholder="Email"
-                className="w-full bg-gray-700 border border-gray-600 text-white rounded-xl px-4 py-3 text-sm outline-none focus:border-blue-500 transition-colors placeholder-gray-400"
-                value={form.email}
-                onChange={e => { setForm({ ...form, email: e.target.value }); setError(""); }}
-              />
+          <h1 className="text-xl font-semibold text-white">
+            Punto de venta
+          </h1>
 
-              <div className="relative">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  placeholder="Contraseña"
-                  className="w-full bg-gray-700 border border-gray-600 text-white rounded-xl px-4 py-3 pr-11 text-sm outline-none focus:border-blue-500 transition-colors placeholder-gray-400"
-                  value={form.password}
-                  onChange={e => { setForm({ ...form, password: e.target.value }); setError(""); }}
-                />
-                <button type="button" onClick={() => setShowPassword(p => !p)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200">
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
+          <p className="mt-1 text-sm text-slate-400">
+            Acceso al sistema
+          </p>
+        </div>
+
+        {/* Tarjeta */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-7 shadow-2xl">
+
+          {/* Login */}
+          {!paso && (
+            <>
+              <div className="mb-6">
+                <h2 className="text-xl font-semibold text-slate-900">
+                  Iniciar sesión
+                </h2>
+
+                <p className="mt-1 text-sm text-slate-500">
+                  Ingresá tus datos para continuar.
+                </p>
               </div>
 
-              {error && <p className="text-red-400 text-sm">{error}</p>}
+              {mensajeExito && (
+                <Mensaje
+                  tipo="success"
+                  texto={mensajeExito}
+                />
+              )}
 
-              <button type="submit" disabled={loading}
-                className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white py-3 rounded-xl text-sm font-medium transition-colors">
-                {loading ? "Ingresando..." : "Iniciar sesión"}
+              {error && (
+                <Mensaje
+                  tipo="error"
+                  texto={error}
+                />
+              )}
+
+              <form
+                onSubmit={handleSubmit}
+                className="space-y-4"
+              >
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Email
+                  </label>
+
+                  <input
+                    type="email"
+                    autoComplete="email"
+                    autoFocus
+                    placeholder="usuario@ejemplo.com"
+                    value={form.email}
+                    onChange={(event) => {
+                      setForm({
+                        ...form,
+                        email: event.target.value
+                      })
+                      setError("")
+                    }}
+                    className={inputClass}
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Contraseña
+                  </label>
+
+                  <div className="relative">
+                    <input
+                      type={
+                        showPassword
+                          ? "text"
+                          : "password"
+                      }
+                      autoComplete="current-password"
+                      placeholder="Ingresá tu contraseña"
+                      value={form.password}
+                      onChange={(event) => {
+                        setForm({
+                          ...form,
+                          password:
+                            event.target.value
+                        })
+                        setError("")
+                      }}
+                      className={`${inputClass} pr-11`}
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setShowPassword(
+                          (actual) => !actual
+                        )
+                      }
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                      {showPassword ? (
+                        <EyeOff size={17} />
+                      ) : (
+                        <Eye size={17} />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className={buttonClass}
+                >
+                  {loading
+                    ? "Ingresando..."
+                    : "Iniciar sesión"}
+                </button>
+              </form>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setPaso("email")
+                  setError("")
+                  setMensajeExito("")
+                }}
+                className="mt-5 w-full text-center text-sm font-medium text-slate-500 hover:text-blue-600"
+              >
+                ¿Olvidaste tu contraseña?
               </button>
-            </form>
+            </>
+          )}
 
-            <button
-              onClick={() => setPaso("email")}
-              className="w-full mt-4 text-gray-400 hover:text-gray-200 text-sm transition-colors"
+          {/* Recuperar: email */}
+          {paso === "email" && (
+            <PasoRecuperacion
+              titulo="Recuperar contraseña"
+              descripcion="Ingresá el email asociado a tu usuario."
+              onVolver={volver}
             >
-              ¿Olvidaste tu contraseña?
-            </button>
-          </>
-        )}
-
-        {/* ── Paso 1: email ─────────────────────────────────────────────── */}
-        {paso === "email" && (
-          <>
-            <div className="text-center mb-6">
-              <h1 className="text-white text-xl font-semibold">Recuperar contraseña</h1>
-              <p className="text-gray-400 text-sm mt-1">Te enviamos un código a tu email</p>
-            </div>
-
-            <div className="space-y-3">
-              <input
-                type="email" placeholder="Tu email"
-                autoFocus
-                className="w-full bg-gray-700 border border-gray-600 text-white rounded-xl px-4 py-3 text-sm outline-none focus:border-blue-500 transition-colors placeholder-gray-400"
-                value={emailRecuperar}
-                onChange={e => { setEmailRecuperar(e.target.value); setMensajeRecuperar(""); }}
-                onKeyDown={e => e.key === "Enter" && solicitarCodigo()}
-              />
-
               {mensajeRecuperar && (
-                <p className={`text-sm ${mensajeRecuperar.includes("enviado") ? "text-green-400" : "text-red-400"}`}>
-                  {mensajeRecuperar}
-                </p>
+                <Mensaje
+                  tipo={mensajeTipo}
+                  texto={mensajeRecuperar}
+                />
               )}
 
-              <button onClick={solicitarCodigo} disabled={loadingRecuperar}
-                className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white py-3 rounded-xl text-sm font-medium transition-colors">
-                {loadingRecuperar ? "Enviando..." : "Enviar código"}
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Email
+                </label>
+
+                <input
+                  type="email"
+                  autoFocus
+                  placeholder="usuario@ejemplo.com"
+                  value={emailRecuperar}
+                  onChange={(event) => {
+                    setEmailRecuperar(
+                      event.target.value
+                    )
+                    setMensajeRecuperar("")
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      solicitarCodigo()
+                    }
+                  }}
+                  className={inputClass}
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={solicitarCodigo}
+                disabled={loadingRecuperar}
+                className={buttonClass}
+              >
+                {loadingRecuperar
+                  ? "Enviando..."
+                  : "Enviar código"}
               </button>
+            </PasoRecuperacion>
+          )}
 
-              <button onClick={resetRecuperar}
-                className="w-full text-gray-400 hover:text-gray-200 text-sm transition-colors">
-                Volver al login
-              </button>
-            </div>
-          </>
-        )}
-
-        {/* ── Paso 2: código ────────────────────────────────────────────── */}
-        {paso === "codigo" && (
-          <>
-            <div className="text-center mb-6">
-              <h1 className="text-white text-xl font-semibold">Ingresá el código</h1>
-              <p className="text-gray-400 text-sm mt-1">Revisá tu bandeja de entrada</p>
-              <p className="text-blue-400 text-sm mt-1">{emailRecuperar}</p>
-            </div>
-
-            <div className="space-y-3">
-              <input
-                type="text" placeholder="Código de 6 dígitos"
-                autoFocus maxLength={6}
-                className="w-full bg-gray-700 border border-gray-600 text-white rounded-xl px-4 py-3 text-sm outline-none focus:border-blue-500 transition-colors placeholder-gray-400 text-center tracking-widest text-lg"
-                value={codigo}
-                onChange={e => { setCodigo(e.target.value.replace(/\D/g, "")); setMensajeRecuperar(""); }}
-                onKeyDown={e => e.key === "Enter" && verificarCodigo()}
-              />
-
+          {/* Recuperar: código */}
+          {paso === "codigo" && (
+            <PasoRecuperacion
+              titulo="Verificar código"
+              descripcion={`Ingresá el código enviado a ${emailRecuperar}`}
+              onVolver={volver}
+            >
               {mensajeRecuperar && (
-                <p className={`text-sm ${mensajeRecuperar.includes("enviado") ? "text-green-400" : "text-red-400"}`}>
-                  {mensajeRecuperar}
-                </p>
+                <Mensaje
+                  tipo={mensajeTipo}
+                  texto={mensajeRecuperar}
+                />
               )}
 
-              <button onClick={verificarCodigo} disabled={loadingRecuperar}
-                className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white py-3 rounded-xl text-sm font-medium transition-colors">
-                {loadingRecuperar ? "Verificando..." : "Verificar código"}
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Código de seguridad
+                </label>
+
+                <div className="relative">
+                  <KeyRound
+                    size={17}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                  />
+
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    autoFocus
+                    maxLength={6}
+                    placeholder="000000"
+                    value={codigo}
+                    onChange={(event) => {
+                      setCodigo(
+                        event.target.value.replace(
+                          /\D/g,
+                          ""
+                        )
+                      )
+                      setMensajeRecuperar("")
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        verificarCodigo()
+                      }
+                    }}
+                    className={`${inputClass} pl-10 text-center text-lg font-semibold tracking-[0.3em]`}
+                  />
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={verificarCodigo}
+                disabled={loadingRecuperar}
+                className={buttonClass}
+              >
+                {loadingRecuperar
+                  ? "Verificando..."
+                  : "Verificar código"}
               </button>
 
-              <button onClick={() => { setPaso("email"); setMensajeRecuperar(""); }}
-                className="w-full text-gray-400 hover:text-gray-200 text-sm transition-colors">
+              <button
+                type="button"
+                onClick={() => {
+                  setPaso("email")
+                  setCodigo("")
+                  setMensajeRecuperar("")
+                }}
+                className="w-full text-center text-sm font-medium text-slate-500 hover:text-blue-600"
+              >
                 Reenviar código
               </button>
-            </div>
-          </>
-        )}
+            </PasoRecuperacion>
+          )}
 
-        {/* ── Paso 3: nueva contraseña ──────────────────────────────────── */}
-        {paso === "password" && (
-          <>
-            <div className="text-center mb-6">
-              <h1 className="text-white text-xl font-semibold">Nueva contraseña</h1>
-              <p className="text-gray-400 text-sm mt-1">Elegí una contraseña segura</p>
-            </div>
-
-            <div className="space-y-3">
-              <div className="relative">
-                <input
-                  type={showNuevaPassword ? "text" : "password"}
-                  placeholder="Mínimo 4 caracteres"
-                  autoFocus
-                  className="w-full bg-gray-700 border border-gray-600 text-white rounded-xl px-4 py-3 pr-11 text-sm outline-none focus:border-blue-500 transition-colors placeholder-gray-400"
-                  value={nuevaPassword}
-                  onChange={e => { setNuevaPassword(e.target.value); setMensajeRecuperar(""); }}
-                  onKeyDown={e => e.key === "Enter" && cambiarPassword()}
-                />
-                <button type="button" onClick={() => setShowNuevaPassword(p => !p)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200">
-                  {showNuevaPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-
+          {/* Recuperar: contraseña */}
+          {paso === "password" && (
+            <PasoRecuperacion
+              titulo="Nueva contraseña"
+              descripcion="Elegí una contraseña de al menos 6 caracteres."
+              onVolver={volver}
+            >
               {mensajeRecuperar && (
-                <p className="text-red-400 text-sm">{mensajeRecuperar}</p>
+                <Mensaje
+                  tipo={mensajeTipo}
+                  texto={mensajeRecuperar}
+                />
               )}
 
-              <button onClick={cambiarPassword} disabled={loadingRecuperar}
-                className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white py-3 rounded-xl text-sm font-medium transition-colors">
-                {loadingRecuperar ? "Guardando..." : "Cambiar contraseña"}
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Nueva contraseña
+                </label>
+
+                <div className="relative">
+                  <input
+                    type={
+                      showNuevaPassword
+                        ? "text"
+                        : "password"
+                    }
+                    autoFocus
+                    placeholder="Mínimo 6 caracteres"
+                    value={nuevaPassword}
+                    onChange={(event) => {
+                      setNuevaPassword(
+                        event.target.value
+                      )
+                      setMensajeRecuperar("")
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        cambiarPassword()
+                      }
+                    }}
+                    className={`${inputClass} pr-11`}
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setShowNuevaPassword(
+                        (actual) => !actual
+                      )
+                    }
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    {showNuevaPassword ? (
+                      <EyeOff size={17} />
+                    ) : (
+                      <Eye size={17} />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={cambiarPassword}
+                disabled={loadingRecuperar}
+                className={buttonClass}
+              >
+                {loadingRecuperar
+                  ? "Guardando..."
+                  : "Cambiar contraseña"}
               </button>
-            </div>
-          </>
-        )}
+            </PasoRecuperacion>
+          )}
+        </div>
+
+        <p className="mt-4 text-center text-xs text-slate-600">
+          Acceso exclusivo para personal autorizado
+        </p>
       </div>
     </div>
-  );
+  )
+}
+
+function Mensaje({ tipo, texto }) {
+  const success = tipo === "success"
+
+  return (
+    <div
+      className={`mb-4 flex items-start gap-2 rounded-xl border px-3 py-2.5 text-sm ${
+        success
+          ? "border-emerald-100 bg-emerald-50 text-emerald-700"
+          : "border-red-100 bg-red-50 text-red-600"
+      }`}
+    >
+      {success && (
+        <CheckCircle
+          size={16}
+          className="mt-0.5 flex-shrink-0"
+        />
+      )}
+
+      <span>{texto}</span>
+    </div>
+  )
+}
+
+function PasoRecuperacion({
+  titulo,
+  descripcion,
+  onVolver,
+  children
+}) {
+  return (
+    <>
+      <button
+        type="button"
+        onClick={onVolver}
+        className="mb-5 flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-blue-600"
+      >
+        <ArrowLeft size={16} />
+        Volver
+      </button>
+
+      <div className="mb-6">
+        <h2 className="text-xl font-semibold text-slate-900">
+          {titulo}
+        </h2>
+
+        <p className="mt-1 text-sm leading-relaxed text-slate-500">
+          {descripcion}
+        </p>
+      </div>
+
+      <div className="space-y-4">
+        {children}
+      </div>
+    </>
+  )
 }
